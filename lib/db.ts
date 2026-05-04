@@ -48,12 +48,12 @@ class Database {
   }
 
   async createUser(user: Partial<User>, adminId?: string): Promise<User> {
-    const { full_name, phone, email, password, role } = user;
+    const { full_name, phone, password, role } = user;
     const validatedAdminId = adminId && this.isUUID(adminId) ? adminId : null;
     
     const res = await this.query<User>(
-      'INSERT INTO users (full_name, phone, email, password, role, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [full_name, phone, email, password, role, validatedAdminId],
+      'INSERT INTO users (full_name, phone, password, role, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [full_name, phone, password, role, validatedAdminId],
       validatedAdminId || undefined
     );
     return res.rows[0];
@@ -61,7 +61,7 @@ class Database {
 
   async updateUser(id: string, user: Partial<User>, adminId?: string): Promise<User> {
     if (!this.isUUID(id)) throw new Error('Invalid user ID');
-    const updatableFields = ['full_name', 'phone', 'email', 'password', 'role', 'is_active'];
+    const updatableFields = ['full_name', 'phone', 'password', 'role', 'is_active'];
     const fields = Object.keys(user).filter(k => updatableFields.includes(k) && user[k as keyof User] !== undefined);
     
     if (fields.length === 0) return this.getUserById(id) as any;

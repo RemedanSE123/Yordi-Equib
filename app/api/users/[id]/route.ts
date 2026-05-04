@@ -16,12 +16,11 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { full_name, phone, role, password, is_active, email } = body;
+    const { full_name, phone, role, password, is_active } = body;
 
     const updateData: any = {};
     if (full_name) updateData.full_name = full_name;
     if (phone) updateData.phone = phone;
-    if (email) updateData.email = email;
     if (role) updateData.role = role;
     if (is_active !== undefined) updateData.is_active = is_active;
     

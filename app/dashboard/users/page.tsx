@@ -8,7 +8,6 @@ interface User {
   id: string;
   full_name: string;
   phone: string;
-  email?: string;
   role: 'ADMIN' | 'MANAGER' | 'SECRETARY' | 'EMPLOYEE' | 'CUSTOMER';
   createdAt: string;
   is_active: boolean;
@@ -30,7 +29,6 @@ export default function UsersPage() {
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
-    email: '',
     role: 'EMPLOYEE' as const,
     password: 'Yordi@321#',
     is_active: true,
@@ -180,7 +178,6 @@ export default function UsersPage() {
     setFormData({
       full_name: user.full_name,
       phone: user.phone,
-      email: user.email || '',
       role: user.role,
       password: '', // Don't show password
       is_active: user.is_active,
