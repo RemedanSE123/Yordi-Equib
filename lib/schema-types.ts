@@ -35,11 +35,12 @@ export interface Payment {
   phone?: string; // Snapshot
   ekub_type?: string; // Snapshot
   amount: number;
-  round_number: number;
-  payment_period: number;
+  round_number: string;
+  payment_period: string;
   payment_status: PaymentStatus;
   payment_date?: Date;
   created_by?: string;
+  created_by_name?: string;
   updated_by?: string;
   created_at: Date;
   updated_at: Date;

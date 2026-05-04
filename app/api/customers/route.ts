@@ -24,11 +24,13 @@ export async function GET(request: Request) {
     let query = `
       SELECT 
         c.*, 
+        u.full_name as created_by_name,
         (SELECT MAX(round_number) FROM payments WHERE customer_id = c.id) as current_round,
         (SELECT MAX(payment_period) FROM payments WHERE customer_id = c.id) as current_period,
         (SELECT payment_status FROM payments WHERE customer_id = c.id ORDER BY created_at DESC LIMIT 1) as last_payment_status,
         (SELECT SUM(amount) FROM payments WHERE customer_id = c.id AND payment_status = 'PAID') as total_paid
       FROM customers c
+      LEFT JOIN users u ON c.created_by = u.id
     `;
     const params = [];
 
@@ -40,10 +42,15 @@ export async function GET(request: Request) {
 
     query += ' ORDER BY c.created_at DESC';
 
-    const res = await db.query<any>(query, params);
+    const res = await db.query<any>(query, params, (session.user as any).id);
     
+    let filteredRows = res.rows;
+    if ((session.user as any).role === 'EMPLOYEE') {
+      filteredRows = filteredRows.filter((row: any) => row.created_by === (session.user as any).id);
+    }
+
     // Map to UI format
-    const customers = res.rows.map(row => ({
+    const customers = filteredRows.map(row => ({
       id: row.id,
       customerId: row.customer_code,
       fullName: row.full_name,
@@ -54,6 +61,7 @@ export async function GET(request: Request) {
       period: row.current_period || 1,
       paymentStatus: row.last_payment_status === 'PAID' ? 'Paid' : 'Unpaid',
       totalPaid: Number(row.total_paid || 0),
+      createdByName: row.created_by_name || 'System',
       amount: 100, // Placeholder or default contribution amount
     }));
 

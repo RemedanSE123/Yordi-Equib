@@ -79,8 +79,8 @@ CREATE TABLE payments (
 
   amount DECIMAL(10,2) NOT NULL,
 
-  round_number INT NOT NULL CHECK (round_number BETWEEN 1 AND 12),
-  payment_period INT NOT NULL,
+  round_number TEXT NOT NULL,
+  payment_period TEXT NOT NULL,
 
   payment_status TEXT CHECK (payment_status IN ('PAID','UNPAID'))
     DEFAULT 'PAID',

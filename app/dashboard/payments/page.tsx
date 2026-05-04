@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { Search, ShieldAlert, User, Phone, Calendar, DollarSign, AlertCircle, CheckCircle, ChevronDown, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Search, ShieldAlert, User, Phone, Calendar, DollarSign, AlertCircle, CheckCircle, ChevronDown, X, History, CreditCard } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Customer {
   id: string;
@@ -16,18 +18,22 @@ interface Period {
   value: number;
   label: string;
   selected: boolean;
+  isPaid?: boolean;
 }
 
 export default function AddPaymentPage() {
   const { data: session } = useSession();
-  const [searchTerm, setSearchTerm] = useState('');
+  const searchParams = useSearchParams();
+  const initialCustomerId = searchParams.get('customerId');
+
+  const [searchTerm, setSearchTerm] = useState(initialCustomerId || '');
   const [foundCustomer, setFoundCustomer] = useState<Customer | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [amount, setAmount] = useState('');
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [selectedPeriods, setSelectedPeriods] = useState<Period[]>([]);
+  const [alreadyPaidPeriods, setAlreadyPaidPeriods] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<'round' | 'period' | null>(null);
   const [searchRound, setSearchRound] = useState('');
   const [searchPeriod, setSearchPeriod] = useState('');
@@ -48,13 +54,65 @@ export default function AddPaymentPage() {
       try {
         const response = await fetch('/api/customers');
         const data = await response.json();
-        if (Array.isArray(data)) setCustomers(data);
+        if (Array.isArray(data)) {
+          setCustomers(data);
+          // If we have an initial customer ID, trigger the search
+          if (initialCustomerId) {
+            const customer = data.find(c => c.customerId === initialCustomerId);
+            if (customer) {
+              setFoundCustomer(customer);
+              setNotFound(false);
+            }
+          }
+        }
       } catch (error) {
         console.error('Failed to fetch customers:', error);
       }
     };
     fetchCustomers();
-  }, []);
+  }, [initialCustomerId]);
+
+  // Fetch already paid periods when customer and round are selected
+  useEffect(() => {
+    if (foundCustomer && selectedRound) {
+      const fetchHistory = async () => {
+        try {
+          const res = await fetch(`/api/payments?customerId=${foundCustomer.id}`);
+          const history = await res.json();
+          if (Array.isArray(history)) {
+            const roundLabel = `Round ${selectedRound}`;
+            const roundValue = selectedRound.toString();
+            
+            const paid = history
+              .filter(p => p.round_number === roundLabel || p.round_number === roundValue)
+              .map(p => p.payment_period.toString());
+            setAlreadyPaidPeriods(paid);
+          }
+        } catch (error) {
+          console.error('Failed to fetch payment history:', error);
+          toast.error('Failed to load payment history');
+        }
+      };
+      fetchHistory();
+    } else {
+      setAlreadyPaidPeriods([]);
+    }
+  }, [foundCustomer, selectedRound]);
+
+  // Update periods when base info or history changes
+  useEffect(() => {
+    if (foundCustomer) {
+      const type = foundCustomer.ekubType.toUpperCase();
+      const typeLabelMap: any = {
+        'DAILY': 'Daily EKUB',
+        'WEEKLY': 'Weekly EKUB',
+        'MONTHLY': 'Monthly EKUB',
+        'DAY_105': '105 Days EKUB',
+        'SHARE': 'Share EKUB'
+      };
+      generatePeriods(typeLabelMap[type] || type);
+    }
+  }, [foundCustomer, alreadyPaidPeriods]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -113,7 +171,7 @@ export default function AddPaymentPage() {
     }
   };
 
-  if (!['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR'].includes(userRole)) {
+  if (!['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'].includes(userRole)) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="text-center max-w-md w-full p-6 rounded-xl border border-red-100 bg-red-50">
@@ -138,44 +196,45 @@ export default function AddPaymentPage() {
       setNotFound(false);
       setAmount('');
       setSelectedRound(null);
-      // Generate periods based on ekubType
-      const typeLabelMap: any = {
-        'DAILY': 'Daily EKUB',
-        'WEEKLY': 'Weekly EKUB',
-        'MONTHLY': 'Monthly EKUB',
-        'DAY_105': '105 Days EKUB',
-        'SHARE': 'Share EKUB'
-      };
-      generatePeriods(typeLabelMap[customer.ekubType] || customer.ekubType);
-      setSuccess(false);
     } else {
       setFoundCustomer(null);
       setNotFound(true);
+      toast.error('Customer not found');
     }
   };
 
   const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
     if (!selectedRound) {
-      alert('Please select a round');
+      toast.warning('Please select a round', {
+        description: 'A round selection is required to record payment.'
+      });
       return;
     }
-    const activePeriods = selectedPeriods.filter(p => p.selected);
+    const activePeriods = selectedPeriods.filter(p => p.selected && !p.isPaid);
     if (activePeriods.length === 0) {
-      alert('Please select at least one period');
+      toast.warning('No periods selected', {
+        description: 'Please select at least one new period to pay.'
+      });
       return;
     }
     if (!amount || parseFloat(amount) <= 0) {
-      alert('Please enter a valid amount');
+      toast.warning('Invalid amount', {
+        description: 'Please enter a valid amount (ETB).'
+      });
       return;
     }
 
     setSubmitting(true);
+    const loadingToast = toast.loading('Recording payments...');
 
     try {
-      // Record payments for each selected period
-      const promises = activePeriods.map(period => 
-        fetch('/api/payments', {
+      // Record payments sequentially to preserve order in history
+      const results = [];
+      for (const period of activePeriods) {
+        const res = await fetch('/api/payments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -184,57 +243,64 @@ export default function AddPaymentPage() {
             phone: foundCustomer.phone,
             ekub_type: foundCustomer.ekubType,
             amount: parseFloat(amount),
-            round_number: selectedRound,
-            payment_period: period.value,
+            round_number: getRoundLabel(),
+            payment_period: period.label,
             payment_status: 'PAID',
           }),
-        })
-      );
+        });
+        results.push(res);
+      }
 
-      const results = await Promise.all(promises);
+      toast.dismiss(loadingToast);
+
       if (results.every(r => r.ok)) {
-        setSuccess(true);
+        toast.success('Payment Successful', {
+          description: `Successfully recorded ${activePeriods.length} payment(s).`
+        });
         setAmount('');
         setSelectedRound(null);
-        const resetPeriods = selectedPeriods.map(p => ({ ...p, selected: false }));
-        setSelectedPeriods(resetPeriods);
-        setTimeout(() => setSuccess(false), 3000);
+        setAlreadyPaidPeriods([]);
       } else {
         const errs = await Promise.all(results.filter(r => !r.ok).map(r => r.json()));
-        alert(errs[0]?.error || 'Some payments failed to record');
+        toast.error('Payment Failed', {
+          description: errs[0]?.error || 'Some payments failed to record.'
+        });
       }
     } catch (error) {
-      alert('Failed to connect to server');
+      toast.dismiss(loadingToast);
+      toast.error('Server connection failed');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const generatePeriods = (ekubType: string) => {
-    let periods: Period[] = [];
+  function generatePeriods(ekubType: string) {
+    let rawPeriods: { value: number, label: string }[] = [];
+    const normalizedType = ekubType.toUpperCase();
 
-    switch (ekubType) {
-      case 'Daily EKUB':
-        periods = Array.from({ length: 30 }, (_, i) => ({ value: i + 1, label: `Day ${i + 1}`, selected: false }));
-        break;
-      case 'Weekly EKUB':
-        periods = Array.from({ length: 60 }, (_, i) => ({ value: i + 1, label: `Week ${i + 1}`, selected: false }));
-        break;
-      case 'Monthly EKUB':
-        const months = ['Meskeram', 'Tikimt', 'Hidar', 'Tahsas', 'Tir', 'Yekatit', 'Megabit', 'Miazia', 'Ginbot', 'Sene', 'Hamle', 'Nehasie'];
-        periods = months.map((month, i) => ({ value: i + 1, label: month, selected: false }));
-        break;
-      case '105 Days EKUB':
-        periods = Array.from({ length: 105 }, (_, i) => ({ value: i + 1, label: `Day ${i + 1}`, selected: false }));
-        break;
-      case 'Share EKUB':
-        periods = Array.from({ length: 60 }, (_, i) => ({ value: i + 1, label: `Day ${i + 1}`, selected: false }));
-        break;
-      default:
-        periods = [];
+    if (normalizedType.includes('DAILY') || normalizedType.includes('105')) {
+      const length = normalizedType.includes('105') ? 105 : 30;
+      rawPeriods = Array.from({ length }, (_, i) => ({ value: i + 1, label: `Day ${i + 1}` }));
+    } else if (normalizedType.includes('WEEKLY')) {
+      rawPeriods = Array.from({ length: 60 }, (_, i) => ({ value: i + 1, label: `Week ${i + 1}` }));
+    } else if (normalizedType.includes('MONTHLY')) {
+      const months = ['Meskerem', 'Tikimt', 'Hidar', 'Tahsas', 'Tir', 'Yekatit', 'Megabit', 'Miazia', 'Ginbot', 'Sene', 'Hamle', 'Nehasie'];
+      rawPeriods = months.map((month, i) => ({ value: i + 1, label: month }));
+    } else if (normalizedType.includes('SHARE')) {
+      rawPeriods = Array.from({ length: 60 }, (_, i) => ({ value: i + 1, label: `Day ${i + 1}` }));
     }
+
+    const periods: Period[] = rawPeriods.map(p => {
+      const isPaid = alreadyPaidPeriods.includes(p.label) || alreadyPaidPeriods.includes(p.value.toString());
+      return {
+        ...p,
+        selected: isPaid,
+        isPaid: isPaid
+      };
+    });
+
     setSelectedPeriods(periods);
-  };
+  }
 
   // Round options (1-12)
   const rounds = Array.from({ length: 12 }, (_, i) => ({
@@ -256,30 +322,69 @@ export default function AddPaymentPage() {
   };
 
   const getPeriodsLabel = () => {
-    const selected = selectedPeriods.filter(p => p.selected);
+    const selected = selectedPeriods.filter(p => p.selected && !p.isPaid);
     if (selected.length === 0) return 'Select periods';
     if (selected.length <= 2) return selected.map(p => p.label).join(', ');
     return `${selected.length} periods selected`;
   };
 
   const togglePeriod = (index: number) => {
+    const period = selectedPeriods[index];
+    if (period.isPaid) return; // Cannot uncheck paid ones
+
+    if (!period.selected) {
+      // Check if all previous are paid or selected
+      const allPreviousReady = selectedPeriods
+        .slice(0, index)
+        .every(p => p.isPaid || p.selected);
+      
+      if (!allPreviousReady) {
+        toast.warning('Invalid Sequence', {
+          description: 'Please select periods in order. You cannot skip a period.',
+          icon: <AlertCircle size={16} className="text-amber-500" />
+        });
+        return;
+      }
+    } else {
+      // Check if all subsequent are NOT selected
+      const anySubsequentSelected = selectedPeriods
+        .slice(index + 1)
+        .some(p => p.selected && !p.isPaid);
+        
+      if (anySubsequentSelected) {
+        toast.warning('Deselection Error', {
+          description: 'Please deselect periods from the end of your selection.',
+          icon: <AlertCircle size={16} className="text-amber-500" />
+        });
+        return;
+      }
+    }
+
     const updatedPeriods = [...selectedPeriods];
     updatedPeriods[index].selected = !updatedPeriods[index].selected;
     setSelectedPeriods(updatedPeriods);
   };
 
   const selectAllPeriods = () => {
-    const updatedPeriods = selectedPeriods.map(period => ({ ...period, selected: true }));
+    // Only select unpaid periods, but in sequence? 
+    // Usually "Select All" should just select everything that isn't paid.
+    const updatedPeriods = selectedPeriods.map(p => ({
+      ...p,
+      selected: true
+    }));
     setSelectedPeriods(updatedPeriods);
   };
 
   const deselectAllPeriods = () => {
-    const updatedPeriods = selectedPeriods.map(period => ({ ...period, selected: false }));
+    const updatedPeriods = selectedPeriods.map(p => ({
+      ...p,
+      selected: p.isPaid ? true : false
+    }));
     setSelectedPeriods(updatedPeriods);
   };
 
   const getSelectedPeriodsCount = () => {
-    return selectedPeriods.filter(p => p.selected).length;
+    return selectedPeriods.filter(p => p.selected && !p.isPaid).length;
   };
 
   const getTotalAmount = () => {
@@ -374,7 +479,7 @@ export default function AddPaymentPage() {
                   {/* Amount Field */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Amount (ETB)
+                      Amount (ETB) <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -394,7 +499,7 @@ export default function AddPaymentPage() {
                   {/* Round Selection (1-12, single select) */}
                   <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Round
+                      Round <span className="text-red-500">*</span>
                     </label>
                     <button
                       ref={roundButtonRef}
@@ -458,7 +563,7 @@ export default function AddPaymentPage() {
                   {/* Period Selection (based on EKUB type, multiple select with checkboxes) */}
                   <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Periods ({foundCustomer.ekubType})
+                      Select Periods ({foundCustomer.ekubType}) <span className="text-red-500">*</span>
                     </label>
                     <button
                       ref={periodButtonRef}
@@ -513,16 +618,19 @@ export default function AddPaymentPage() {
                           {filteredPeriods.length > 0 ? (
                             filteredPeriods.map((period, index) => (
                               <label
-                                key={period.value}
-                                className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                                className={`flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition ${period.isPaid ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer'}`}
                               >
                                 <input
                                   type="checkbox"
                                   checked={period.selected}
                                   onChange={() => togglePeriod(index)}
-                                  className="w-4 h-4 text-[#016cc4] rounded border-gray-300 focus:ring-[#016cc4]"
+                                  disabled={period.isPaid}
+                                  className={`w-4 h-4 rounded border-gray-300 focus:ring-[#016cc4] ${period.isPaid ? 'text-gray-400' : 'text-[#016cc4]'}`}
                                 />
-                                <span className="text-sm text-gray-700">{period.label}</span>
+                                <span className={`text-sm ${period.isPaid ? 'text-gray-400 font-medium' : 'text-gray-700'}`}>
+                                  {period.label}
+                                  {period.isPaid && <span className="ml-2 text-[10px] uppercase tracking-wider font-bold text-emerald-600">Paid</span>}
+                                </span>
                               </label>
                             ))
                           ) : (
@@ -541,13 +649,6 @@ export default function AddPaymentPage() {
                     )}
                   </div>
 
-                  {success && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                      <CheckCircle size={16} className="text-green-600 flex-shrink-0" />
-                      <p className="text-green-700 text-sm">Payment recorded successfully!</p>
-                    </div>
-                  )}
-
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       type="submit"
@@ -564,7 +665,7 @@ export default function AddPaymentPage() {
                         setAmount('');
                         setSelectedRound(null);
                         setSelectedPeriods([]);
-                        setSuccess(false);
+                        toast.info('Form cleared');
                       }}
                       className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition text-sm"
                     >

@@ -21,17 +21,37 @@ export async function GET() {
     `;
     const res = await db.query<any>(query);
 
-    const logs = res.rows.map(row => ({
-      id: row.id,
-      timestamp: new Date(row.created_at).toLocaleString(),
-      user: row.user_name || 'System',
-      action: row.action,
-      entityType: row.table_name,
-      entityId: row.record_id || 'N/A',
-      details: `${row.action} on ${row.table_name}`,
-      old_data: row.old_data,
-      new_data: row.new_data,
-    }));
+    const logs = res.rows.map(row => {
+      let details = `${row.action} on ${row.table_name}`;
+      const data = row.new_data || row.old_data || {};
+      
+      if (row.table_name === 'payments') {
+        details = `${row.action === 'INSERT' ? 'Recorded' : row.action === 'DELETE' ? 'Removed' : 'Updated'} payment of ETB ${data.amount?.toLocaleString() || '0'} for ${data.customer_name || 'unknown'}`;
+      } else if (row.table_name === 'customers') {
+        details = `${row.action === 'INSERT' ? 'Registered' : row.action === 'DELETE' ? 'Archived' : 'Modified'} member: ${data.full_name || 'unknown'}`;
+      } else if (row.table_name === 'users') {
+        details = `${row.action === 'INSERT' ? 'Created' : 'Updated'} staff account: ${data.full_name || 'unknown'}`;
+      }
+
+      return {
+        id: row.id,
+        timestamp: new Date(row.created_at).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }),
+        user: row.user_name || 'System',
+        action: row.action,
+        entityType: row.table_name,
+        entityId: row.record_id || 'N/A',
+        details,
+        old_data: row.old_data,
+        new_data: row.new_data,
+      };
+    });
 
     return NextResponse.json(logs);
   } catch (error) {

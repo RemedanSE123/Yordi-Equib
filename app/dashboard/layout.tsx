@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Sidebar from '@/components/dashboard/sidebar';
 import DashboardHeader from '@/components/dashboard/dashboard-header';
 import { useSession } from 'next-auth/react';
@@ -11,6 +12,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { data: session, status } = useSession();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   if (status === 'loading') {
     return (
@@ -29,9 +31,9 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <Sidebar />
+      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <DashboardHeader />
+        <DashboardHeader onMenuClick={() => setIsSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>

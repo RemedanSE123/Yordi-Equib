@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Phone, Lock, Eye, EyeOff, LogIn, Shield, Sparkles } from 'lucide-react';
+import { Phone, Lock, Eye, EyeOff, LogIn, Shield } from 'lucide-react';
 import Image from 'next/image';
 
 export default function LoginPage() {
@@ -39,9 +39,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="h-screen flex flex-col md:flex-row overflow-hidden">
       {/* Left Side - Image */}
-      <div className="hidden md:block md:w-1/2 lg:w-2/3 relative min-h-screen">
+      <div className="hidden md:block md:w-1/2 lg:w-2/3 relative h-full">
         <Image
           src="/lp2.jpg"
           alt="YORDI EQUIB System"
@@ -96,7 +96,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="flex-1 md:w-1/2 lg:w-1/3 flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 md:p-8">
+      <div className="flex-1 md:w-1/2 lg:w-1/3 flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 md:p-8 h-full overflow-y-auto">
         <div className="w-full max-w-md bg-white p-8 sm:p-10 rounded-[32px] border border-gray-300 shadow-[0_30px_70px_rgba(0,0,0,0.2)]">
           {/* Logo */}
           <div className="text-center mb-6 md:mb-8">
@@ -121,7 +121,7 @@ export default function LoginPage() {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 sm:mb-6 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 text-center animate-shake">
+            <div className="mb-4 sm:mb-6 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 text-center">
               {error}
             </div>
           )}
@@ -140,7 +140,7 @@ export default function LoginPage() {
                   placeholder="0912345678"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition-all bg-white/80"
+                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition-all bg-white"
                   disabled={loading}
                   required
                 />
@@ -159,7 +159,7 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition-all bg-white/80"
+                  className="w-full pl-10 pr-12 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition-all bg-white"
                   disabled={loading}
                   required
                 />
@@ -198,25 +198,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Footer */}
-          <div className="mt-6 sm:mt-8 text-center">
-            <p className="text-[10px] sm:text-xs text-gray-400">
-              Secure Login • Powered by YORDI EQUIB
-            </p>
-          </div>
+
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-5px); }
-          75% { transform: translateX(5px); }
-        }
-        .animate-shake {
-          animation: shake 0.3s ease-in-out;
-        }
-      `}</style>
     </div>
   );
 }

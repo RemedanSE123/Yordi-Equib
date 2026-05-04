@@ -10,7 +10,20 @@ export async function PUT(
   try {
     const { id } = await params;
     const session = await getServerSession(authConfig);
+    const userRole = (session?.user as any)?.role;
+    const userId = (session?.user as any)?.id;
+
     if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Role-based validation
+    if (userRole === 'EMPLOYEE') {
+      const existingCustomer = await db.getCustomerById(id);
+      if (!existingCustomer || existingCustomer.created_by !== userId) {
+        return NextResponse.json({ error: 'Unauthorized: You can only edit your own customers' }, { status: 403 });
+      }
+    } else if (!['ADMIN', 'MANAGER', 'SECRETARY'].includes(userRole)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -24,7 +37,7 @@ export async function PUT(
     if (ekub_type) updateData.ekub_type = ekub_type;
     if (is_active !== undefined) updateData.is_active = is_active;
 
-    const customer = await db.updateCustomer(id, updateData, (session.user as any).id);
+    const customer = await db.updateCustomer(id, updateData, userId);
 
     return NextResponse.json(customer);
   } catch (error) {
@@ -40,11 +53,24 @@ export async function DELETE(
   try {
     const { id } = await params;
     const session = await getServerSession(authConfig);
-    if (!session || !['ADMIN', 'MANAGER'].includes((session.user as any).role)) {
+    const userRole = (session?.user as any)?.role;
+    const userId = (session?.user as any)?.id;
+
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await db.deleteCustomer(id, (session.user as any).id);
+    // Role-based validation: Secretaries can also delete customer records
+    if (userRole === 'EMPLOYEE') {
+      const existingCustomer = await db.getCustomerById(id);
+      if (!existingCustomer || existingCustomer.created_by !== userId) {
+        return NextResponse.json({ error: 'Unauthorized: You can only delete your own customers' }, { status: 403 });
+      }
+    } else if (!['ADMIN', 'MANAGER', 'SECRETARY'].includes(userRole)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await db.deleteCustomer(id, userId);
 
     return NextResponse.json({ message: 'Customer deleted successfully' });
   } catch (error) {

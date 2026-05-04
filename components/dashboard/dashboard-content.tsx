@@ -1,20 +1,29 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Sidebar from './sidebar';
-import KPICards from './kpi-cards';
-import EkubChart from './ekub-chart';
-import PaymentStatus from './payment-status';
 import { useSession } from 'next-auth/react';
-import { BellRing, Search, Users, TrendingUp, Calendar, DollarSign, Clock } from 'lucide-react';
+import {
+  BellRing, Search, Users, TrendingUp, Calendar, DollarSign, Clock,
+  ChevronLeft, ChevronRight, User, Database, ArrowUpRight, ArrowDownRight,
+  CreditCard, Wallet, PieChart, Activity, Zap, Target, Award, Home,
+  BarChart3, CircleDollarSign, Layers, CalendarDays, CalendarRange,
+  MoreHorizontal, Eye, Download, Sparkles, TrendingDown, RefreshCw
+} from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell } from 'recharts';
 
 export default function DashboardContent() {
   const [ekubs, setEkubs] = useState<any[]>([]);
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { data: session } = useSession();
-
   const [totals, setTotals] = useState({ totalCollected: 0, todayTotal: 0, totalCustomers: 0 });
+  const [trends, setTrends] = useState<any>({ weekly: [], monthly: [], yearly: [] });
+  const [trendType, setTrendType] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
+  const [hoveredKpi, setHoveredKpi] = useState<number | null>(null);
+  const [hoveredPieSegment, setHoveredPieSegment] = useState<number | null>(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const paymentsPerPage = 10;
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -25,6 +34,7 @@ export default function DashboardContent() {
           setEkubs(data.ekubs || []);
           setRecentPayments(data.recentPayments || []);
           setTotals(data.totals || { totalCollected: 0, todayTotal: 0, totalCustomers: 0 });
+          setTrends(data.trends || { weekly: [], monthly: [], yearly: [] });
         }
       } catch (error) {
         console.error('Failed to fetch stats:', error);
@@ -39,255 +49,373 @@ export default function DashboardContent() {
   const totalContributions = totals.totalCollected;
   const todayTotalCollection = totals.todayTotal;
   const totalUsers = totals.totalCustomers;
-  // We'll use the number of EKUB groups for 'Total company Users' as shown in the original UI
   const totalGroups = ekubs.length;
 
+  const currentTrendData = trends[trendType] || [];
+
+  const totalPages = Math.ceil(recentPayments.length / paymentsPerPage);
+  const startIndex = (currentPage - 1) * paymentsPerPage;
+  const paginatedPayments = recentPayments.slice(startIndex, startIndex + paymentsPerPage);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
+
+  const pieChartData = ekubs.map(ekub => ({
+    name: ekub.name,
+    value: ekub.totalContributions,
+  }));
+
+  const COLORS = ['#091A2B', '#2c4c6e', '#4a7c9c', '#6b9cc0', '#8bbce4'];
+
+  const formatYAxisTick = (value: number) => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
+    return value.toString();
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
+
+  const kpiData = [
+    { label: 'Total Collection', value: totalContributions, change: '+12.5%', icon: Wallet, color: 'from-gray-800 to-gray-900' },
+    { label: "Today's Collection", value: todayTotalCollection, change: 'Real-time', icon: DollarSign, color: 'from-gray-700 to-gray-800' },
+    { label: 'Active Groups', value: totalGroups, change: 'EKUB Schemes', icon: PieChart, color: 'from-gray-800 to-gray-900' },
+    { label: 'Total Customers', value: totalUsers, change: '+8.2%', icon: Users, color: 'from-gray-700 to-gray-800' }
+  ];
+
   return (
-    <div className="p-4 md:p-8 bg-gradient-to-br from-gray-50 to-white min-h-screen">
+    <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Welcome back, {session?.user?.name || 'User'}!</p>
+      <div className="flex justify-between items-center mb-8 animate-fadeIn">
+        <div className="animate-slideInLeft">
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 text-sm mt-1">Welcome back, {session?.user?.name || 'User'}</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <div className="flex items-center gap-3 animate-slideInRight">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-gray-700 transition-colors duration-300" size={18} />
             <input
               type="text"
               placeholder="Search..."
-              className="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-[#016cc4] w-64"
+              className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-gray-700 focus:ring-1 focus:ring-gray-700 w-48 md:w-64 text-sm transition-all duration-300"
             />
           </div>
-          <button className="relative p-2 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
-            <BellRing size={20} className="text-gray-600" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+          <button className="relative p-2 bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-gray-300 transition-all duration-300 hover:scale-105">
+            <BellRing size={18} className="text-gray-600" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
           </button>
         </div>
       </div>
 
-      {/* KPI Cards - Changed Active Ekubs to Total Customers */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm">Total Collected</p>
-              <p className="text-3xl font-bold mt-2">ETB {totalContributions.toLocaleString()}</p>
+      {/* Animated KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        {kpiData.map((kpi, idx) => (
+          <div
+            key={idx}
+            className="group relative bg-white rounded-lg p-5 shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-500 hover:-translate-y-1 cursor-pointer overflow-hidden"
+            onMouseEnter={() => setHoveredKpi(idx)}
+            onMouseLeave={() => setHoveredKpi(null)}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-gray-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div className="absolute -right-8 -top-8 w-24 h-24 bg-gray-100 rounded-full group-hover:scale-150 transition-transform duration-500 opacity-0 group-hover:opacity-100"></div>
+            <div className="flex justify-between items-start relative z-10">
+              <div>
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide group-hover:text-gray-700 transition-colors duration-300">{kpi.label}</p>
+                <p className="text-2xl font-bold text-gray-900 mt-2 group-hover:scale-105 transition-transform duration-300 origin-left">ETB {kpi.value.toLocaleString()}</p>
+                <div className="flex items-center gap-1 mt-3">
+                  {idx === 0 || idx === 3 ? (
+                    <div className="px-2 py-0.5 bg-green-100 rounded-full flex items-center gap-1 group-hover:scale-105 transition-transform">
+                      <ArrowUpRight size={12} className="text-green-600" />
+                      <span className="text-green-600 text-xs font-medium">{kpi.change}</span>
+                    </div>
+                  ) : (
+                    <div className="px-2 py-0.5 bg-gray-100 rounded-full group-hover:scale-105 transition-transform">
+                      <span className="text-gray-600 text-xs font-medium">{kpi.change}</span>
+                    </div>
+                  )}
+                  {idx === 0 && <span className="text-gray-400 text-xs">vs last month</span>}
+                  {idx === 3 && <span className="text-gray-400 text-xs">new this month</span>}
+                </div>
+              </div>
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${kpi.color} flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
+                <kpi.icon size={22} className="text-white" />
+              </div>
             </div>
-            <DollarSign size={40} className="text-green-200" />
           </div>
-        </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm">Today's Collection</p>
-              <p className="text-3xl font-bold mt-2">ETB {todayTotalCollection.toLocaleString()}</p>
-            </div>
-            <TrendingUp size={40} className="text-purple-200" />
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-orange-100 text-sm">Total company Users </p>
-              <p className="text-3xl font-bold mt-2">{totalGroups}</p>
-            </div>
-            <Calendar size={40} className="text-orange-200" />
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm">Total Customers</p>
-              <p className="text-3xl font-bold mt-2">{totalUsers}</p>
-            </div>
-            <Users size={40} className="text-blue-200" />
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Charts Section - Bar Chart (Contributions only) & Pie Chart (5 EKUB types collected money) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-        {/* Bar Chart - Contributions only (no payouts) */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Contributions by EKUB Type</h2>
-          <div className="space-y-4">
-            {ekubs.map((ekub) => (
-              <div key={ekub.id}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-600">{ekub.name}</span>
-                  <span className="font-semibold text-gray-900">ETB {ekub.totalContributions.toLocaleString()}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-8 overflow-hidden">
-                  <div
-                    className="bg-gradient-to-r from-[#016cc4] to-[#0158a3] h-full rounded-full flex items-center justify-end pr-3 text-white text-xs font-medium"
-                    style={{ width: `${(ekub.totalContributions / totalContributions) * 100}%` }}
+      {/* Animated Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="group bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-500 hover:-translate-y-1">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 group-hover:text-gray-800 transition-colors">Collection Trend</h3>
+              <p className="text-gray-400 text-xs mt-1">Revenue analytics over time</p>
+            </div>
+            <div className="flex bg-gray-100 p-1 rounded-lg">
+              {(['weekly', 'monthly', 'yearly'] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setTrendType(type)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${trendType === type
+                      ? 'bg-gray-800 text-white shadow-md'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={currentTrendData}>
+              <defs>
+                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#091A2B" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#091A2B" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={formatYAxisTick} width={50} />
+              <Tooltip
+                contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                formatter={(value: any) => [`ETB ${value.toLocaleString()}`, 'Total Collected']}
+              />
+              <Area
+                type="monotone"
+                dataKey="amount"
+                stroke="#091A2B"
+                strokeWidth={2.5}
+                fillOpacity={1}
+                fill="url(#colorAmount)"
+                className="group-hover:stroke-3 transition-all duration-300"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="group bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-500 hover:-translate-y-1">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 group-hover:text-gray-800 transition-colors">Money Distribution</h3>
+              <p className="text-gray-400 text-xs mt-1">By EKUB type</p>
+            </div>
+          </div>
+          {pieChartData.length > 0 ? (
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={300}>
+                <RePieChart>
+                  <Pie
+                    data={pieChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={true}
                   >
-                    {((ekub.totalContributions / totalContributions) * 100).toFixed(0)}%
-                  </div>
-                </div>
+                    {pieChartData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                        stroke="white"
+                        strokeWidth={2}
+                        className="cursor-pointer transition-all duration-300 hover:opacity-80 hover:scale-110"
+                        onMouseEnter={() => setHoveredPieSegment(index)}
+                        onMouseLeave={() => setHoveredPieSegment(null)}
+                        style={{
+                          transform: hoveredPieSegment === index ? 'scale(1.05)' : 'scale(1)',
+                          transformOrigin: 'center',
+                          transition: 'transform 0.3s ease'
+                        }}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => [`ETB ${value.toLocaleString()}`, 'Amount']}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                </RePieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 pointer-events-none rounded-full animate-pulse-slow opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ boxShadow: '0 0 0 0 rgba(9,26,43,0.1)' }}></div>
+            </div>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center">
+              <p className="text-gray-400 text-sm">No data available</p>
+            </div>
+          )}
+          <div className="flex flex-wrap justify-center gap-4 mt-4 pt-2 border-t border-gray-100">
+            {pieChartData.map((item, index) => (
+              <div
+                key={item.name}
+                className="flex items-center gap-2 group/pie cursor-pointer transition-all duration-300 hover:scale-105"
+                onMouseEnter={() => setHoveredPieSegment(index)}
+                onMouseLeave={() => setHoveredPieSegment(null)}
+              >
+                <div
+                  className="w-3 h-3 rounded-full transition-all duration-300 group-hover/pie:scale-110"
+                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                />
+                <span className="text-xs text-gray-600 group-hover/pie:text-gray-900 transition-colors duration-300">{item.name}</span>
+                <span className="text-xs font-semibold text-gray-900">{((item.value / totalContributions) * 100).toFixed(1)}%</span>
               </div>
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Pie Chart - 5 EKUB types collected money */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Collected Money by EKUB Type</h2>
-          <div className="relative">
-            <div className="flex justify-center mb-6">
-              <div className="relative w-48 h-48">
-                <svg viewBox="0 0 100 100" className="transform -rotate-90">
-                  {(() => {
-                    let currentAngle = 0;
-                    const colors = ['#016cc4', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe'];
-                    return ekubs.map((ekub, index) => {
-                      const percentage = (ekub.totalContributions / totalContributions) * 100;
-                      const angle = (percentage / 100) * 360;
-                      const startAngle = currentAngle;
-                      const endAngle = currentAngle + angle;
-                      currentAngle = endAngle;
-
-                      const startRad = (startAngle * Math.PI) / 180;
-                      const endRad = (endAngle * Math.PI) / 180;
-
-                      const x1 = 50 + 40 * Math.cos(startRad);
-                      const y1 = 50 + 40 * Math.sin(startRad);
-                      const x2 = 50 + 40 * Math.cos(endRad);
-                      const y2 = 50 + 40 * Math.sin(endRad);
-
-                      const largeArc = angle > 180 ? 1 : 0;
-
-                      return (
-                        <path
-                          key={ekub.id}
-                          d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                          fill={colors[index]}
-                          className="transition-all duration-300 hover:opacity-80 cursor-pointer"
-                        />
-                      );
-                    });
-                  })()}
-                  <circle cx="50" cy="50" r="25" fill="white" />
-                </svg>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {ekubs.map((ekub, index) => {
-                const colors = ['#016cc4', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe'];
-                const percentage = ((ekub.totalContributions / totalContributions) * 100).toFixed(1);
-                return (
-                  <div key={ekub.id} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[index] }} />
-                    <span className="text-xs text-gray-600 flex-1">{ekub.name}</span>
-                    <span className="text-xs font-semibold text-gray-900">{percentage}%</span>
-                  </div>
-                );
-              })}
-            </div>
+      {/* EKUB Overview Table - Clean & Professional */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">EKUB Overview</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Performance metrics by group</p>
           </div>
+          <button className="flex items-center gap-2 text-xs text-gray-600 font-medium px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+            <Download size={14} />
+            Export Report
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Scheme</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Members</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Total Collection</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Today</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Progress</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {ekubs.map((ekub, idx) => (
+                <tr key={ekub.type} className="hover:bg-gray-50 transition">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-gray-800 flex items-center justify-center text-white font-semibold text-xs">
+                        {ekub.name.charAt(0)}
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">{ekub.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{ekub.totalUsers}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">ETB {ekub.totalContributions.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">ETB {ekub.todayCollection.toLocaleString()}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 bg-gray-200 rounded-full h-1.5">
+                        <div className="bg-gray-800 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(ekub.currentRound / ekub.totalRounds) * 100}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-500">{ekub.currentRound}/{ekub.totalRounds}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Table - 5 rows for each EKUB type */}
-      <div className="mt-8 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">EKUB Types Summary</h2>
-              <p className="text-sm text-gray-500 mt-1">Overview of all 5 EKUB types</p>
+      {/* Recent Transactions Table - Clean & Professional */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Recent Transactions</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Latest payment activity</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">Page {currentPage} of {totalPages || 1}</span>
+            <div className="flex gap-1">
+              <button onClick={handlePrevPage} disabled={currentPage === 1} className="p-1.5 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-50 transition">
+                <ChevronLeft size={14} className="text-gray-600" />
+              </button>
+              <button onClick={handleNextPage} disabled={currentPage === totalPages} className="p-1.5 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-50 transition">
+                <ChevronRight size={14} className="text-gray-600" />
+              </button>
             </div>
-            <button className="px-3 py-1.5 text-sm bg-[#016cc4] text-white rounded-lg hover:bg-[#0158a3] transition-colors">
-              Export Data
-            </button>
           </div>
         </div>
-
-        {loading ? (
-          <div className="text-center py-8 text-gray-500">Loading...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">EKUB Type</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Number of Users</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Total Money Collected (ETB)</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Today's Money Collected (ETB)</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Progress</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {ekubs.map((ekub) => (
-                  <tr key={ekub.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm">
-                      <span className="px-2 py-1 bg-blue-50 text-[#016cc4] rounded-lg text-xs font-medium">
-                        {ekub.name}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">{ekub.totalUsers}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-green-600">
-                      ETB {ekub.totalContributions.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600">
-                      ETB {ekub.todayCollection.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">#</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Customer</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ID</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Scheme</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Round</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Time</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <tr><td colSpan={8} className="py-12 text-center"><div className="inline-block w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin"></div><p className="text-sm text-gray-500 mt-2">Loading...</p></td></tr>
+              ) : paginatedPayments.length > 0 ? (
+                paginatedPayments.map((payment, idx) => (
+                  <tr key={payment.id} className="hover:bg-gray-50 transition">
+                    <td className="px-6 py-4 text-xs text-gray-400">{(currentPage - 1) * paymentsPerPage + idx + 1}</td>
+                    <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-[#016cc4] h-2 rounded-full"
-                            style={{ width: `${(ekub.currentRound / ekub.totalRounds) * 100}%` }}
-                          />
+                        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
+                          <User size={12} className="text-gray-500" />
                         </div>
-                        <span className="text-xs text-gray-500">{ekub.currentRound}/{ekub.totalRounds}</span>
+                        <span className="text-sm font-medium text-gray-900">{payment.customer_name}</span>
                       </div>
                     </td>
+                    <td className="px-6 py-4 text-xs font-mono text-gray-500">{payment.customer_id}</td>
+                    <td className="px-6 py-4">
+                      <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">{payment.ekub_type}</span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{payment.round}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">ETB {payment.amount.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{formatDate(payment.date)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{payment.time}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Recent Payments Section */}
-      <div className="mt-8 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Recent Payments</h2>
-              <p className="text-sm text-gray-500 mt-1">Latest customer payment transactions</p>
-            </div>
-            <Clock size={20} className="text-gray-400" />
-          </div>
+                ))
+              ) : (
+                <tr><td colSpan={8} className="py-12 text-center text-gray-400">No transactions found</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
-
-        {loading ? (
-          <div className="text-center py-8 text-gray-500">Loading...</div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {recentPayments.map((payment) => (
-              <div key={payment.id} className="px-6 py-4 hover:bg-gray-50 transition-colors flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                    <DollarSign size={18} className="text-green-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{payment.customerName}</p>
-                    <p className="text-xs text-gray-500">{payment.customerId} • {payment.ekubType} • Round {payment.round}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-green-600">ETB {payment.amount.toLocaleString()}</p>
-                  <p className="text-xs text-gray-400">{payment.date} at {payment.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideInLeft {
+          from { opacity: 0; transform: translateX(-20px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInRight {
+          from { opacity: 0; transform: translateX(20px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes pulse-slow {
+          0% { box-shadow: 0 0 0 0 rgba(9,26,43,0.1); }
+          70% { box-shadow: 0 0 0 20px rgba(9,26,43,0); }
+          100% { box-shadow: 0 0 0 0 rgba(9,26,43,0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+        .animate-slideInLeft { animation: slideInLeft 0.5s ease-out; }
+        .animate-slideInRight { animation: slideInRight 0.5s ease-out; }
+        .animate-pulse-slow { animation: pulse-slow 2s infinite; }
+      `}</style>
     </div>
   );
 }
