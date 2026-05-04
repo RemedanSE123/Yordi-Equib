@@ -14,166 +14,33 @@ export default function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const { data: session } = useSession();
 
+  const [totals, setTotals] = useState({ totalCollected: 0, todayTotal: 0, totalCustomers: 0 });
+
   useEffect(() => {
-    // Load dashboard data
-    const timer = setTimeout(() => {
-      // 5 EKUB Types data
-      setEkubs([
-        {
-          id: '1',
-          name: 'Daily EKUB',
-          type: 'daily',
-          totalContributions: 125000,
-          todayCollection: 4250,
-          totalPayouts: 4000,
-          totalUsers: 45,
-          currentRound: 5,
-          totalRounds: 30,
-          membersPaidToday: 38,
-        },
-        {
-          id: '2',
-          name: 'Weekly EKUB',
-          type: 'weekly',
-          totalContributions: 87500,
-          todayCollection: 3200,
-          totalPayouts: 6000,
-          totalUsers: 32,
-          currentRound: 3,
-          totalRounds: 60,
-          membersPaidToday: 28,
-        },
-        {
-          id: '3',
-          name: 'Monthly EKUB',
-          type: 'monthly',
-          totalContributions: 72000,
-          todayCollection: 2800,
-          totalPayouts: 4000,
-          totalUsers: 28,
-          currentRound: 2,
-          totalRounds: 14,
-          membersPaidToday: 24,
-        },
-        {
-          id: '4',
-          name: '105 Days EKUB',
-          type: '105-days',
-          totalContributions: 63200,
-          todayCollection: 1950,
-          totalPayouts: 2100,
-          totalUsers: 24,
-          currentRound: 15,
-          totalRounds: 107,
-          membersPaidToday: 19,
-        },
-        {
-          id: '5',
-          name: 'Share EKUB',
-          type: 'share',
-          totalContributions: 54800,
-          todayCollection: 1680,
-          totalPayouts: 1900,
-          totalUsers: 20,
-          currentRound: 25,
-          totalRounds: 60,
-          membersPaidToday: 16,
-        },
-      ]);
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+        if (data) {
+          setEkubs(data.ekubs || []);
+          setRecentPayments(data.recentPayments || []);
+          setTotals(data.totals || { totalCollected: 0, todayTotal: 0, totalCustomers: 0 });
+        }
+      } catch (error) {
+        console.error('Failed to fetch stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      // Recent payments data
-      setRecentPayments([
-        {
-          id: 'P001',
-          customerName: 'Almaz Tadese',
-          customerId: 'C001',
-          ekubType: 'Daily EKUB',
-          amount: 100,
-          date: '2024-01-15',
-          time: '10:30 AM',
-          round: 5,
-        },
-        {
-          id: 'P002',
-          customerName: 'Kebede Desta',
-          customerId: 'C002',
-          ekubType: 'Daily EKUB',
-          amount: 100,
-          date: '2024-01-15',
-          time: '10:45 AM',
-          round: 5,
-        },
-        {
-          id: 'P003',
-          customerName: 'Tigist Mengistu',
-          customerId: 'C003',
-          ekubType: 'Weekly EKUB',
-          amount: 250,
-          date: '2024-01-15',
-          time: '11:00 AM',
-          round: 3,
-        },
-        {
-          id: 'P004',
-          customerName: 'Solomon Alemu',
-          customerId: 'C004',
-          ekubType: 'Weekly EKUB',
-          amount: 250,
-          date: '2024-01-15',
-          time: '11:20 AM',
-          round: 3,
-        },
-        {
-          id: 'P005',
-          customerName: 'Meseret Bekele',
-          customerId: 'C005',
-          ekubType: 'Monthly EKUB',
-          amount: 300,
-          date: '2024-01-15',
-          time: '11:45 AM',
-          round: 2,
-        },
-        {
-          id: 'P006',
-          customerName: 'Getachew Worku',
-          customerId: 'C006',
-          ekubType: 'Monthly EKUB',
-          amount: 300,
-          date: '2024-01-15',
-          time: '12:00 PM',
-          round: 2,
-        },
-        {
-          id: 'P007',
-          customerName: 'Hana Abebe',
-          customerId: 'C007',
-          ekubType: '105 Days EKUB',
-          amount: 50,
-          date: '2024-01-15',
-          time: '01:15 PM',
-          round: 15,
-        },
-        {
-          id: 'P008',
-          customerName: 'Dawit Mekonnen',
-          customerId: 'C008',
-          ekubType: 'Share EKUB',
-          amount: 60,
-          date: '2024-01-15',
-          time: '01:30 PM',
-          round: 25,
-        },
-      ]);
-      setLoading(false);
-    }, 500);
-
-    return () => clearTimeout(timer);
+    fetchStats();
   }, []);
 
-  const totalContributions = ekubs.reduce((sum, e) => sum + e.totalContributions, 0);
-  const totalPayouts = ekubs.reduce((sum, e) => sum + e.totalPayouts, 0);
-  const totalUsers = ekubs.reduce((sum, e) => sum + e.totalUsers, 0);
-  const todayTotalCollection = ekubs.reduce((sum, e) => sum + e.todayCollection, 0);
+  const totalContributions = totals.totalCollected;
+  const todayTotalCollection = totals.todayTotal;
+  const totalUsers = totals.totalCustomers;
+  // We'll use the number of EKUB groups for 'Total company Users' as shown in the original UI
+  const totalGroups = ekubs.length;
 
   return (
     <div className="p-4 md:p-8 bg-gradient-to-br from-gray-50 to-white min-h-screen">
@@ -224,7 +91,7 @@ export default function DashboardContent() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-orange-100 text-sm">Total company Users </p>
-              <p className="text-3xl font-bold mt-2">{ekubs.length}</p>
+              <p className="text-3xl font-bold mt-2">{totalGroups}</p>
             </div>
             <Calendar size={40} className="text-orange-200" />
           </div>

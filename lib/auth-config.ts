@@ -22,7 +22,7 @@ export const authConfig = {
 
         const passwordMatch = await bcrypt.compare(
           credentials.password,
-          user.hashedPassword
+          user.password || ''
         );
 
         if (!passwordMatch) {
@@ -32,9 +32,8 @@ export const authConfig = {
         return {
           id: user.id,
           phone: user.phone,
-          fullName: user.fullName,
+          name: user.full_name,
           role: user.role,
-          ekubName: user.ekubName,
         };
       },
     }),
@@ -46,9 +45,8 @@ export const authConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.phone = user.phone;
+        token.phone = (user as any).phone;
         token.role = (user as any).role;
-        token.ekubName = (user as any).ekubName;
       }
       return token;
     },
@@ -57,7 +55,6 @@ export const authConfig = {
         (session.user as any).id = token.id;
         (session.user as any).phone = token.phone;
         (session.user as any).role = token.role;
-        (session.user as any).ekubName = token.ekubName;
       }
       return session;
     },

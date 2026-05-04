@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Eye, Search, ShieldAlert, X } from 'lucide-react';
 
@@ -12,61 +12,39 @@ interface AuditLog {
   entityType: string;
   entityId: string;
   details: string;
-  changes?: Record<string, any>;
+  old_data?: any;
+  new_data?: any;
 }
 
 export default function AuditPage() {
   const { data: session } = useSession();
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
-    {
-      id: '1',
-      timestamp: '2026-05-03 14:30',
-      user: 'Admin User',
-      action: 'CREATE',
-      entityType: 'EKUB',
-      entityId: 'ekub_1',
-      details: 'Created new EKUB Group: Daily EKUB Group 1',
-      changes: {
-        name: 'Daily EKUB Group 1',
-        type: 'daily',
-        status: 'active',
-      },
-    },
-    {
-      id: '2',
-      timestamp: '2026-05-03 15:45',
-      user: 'Manager User',
-      action: 'UPDATE',
-      entityType: 'CUSTOMER',
-      entityId: 'cust_1',
-      details: 'Updated customer Abebe Bekele - Status changed',
-      changes: {
-        before: { status: 'inactive' },
-        after: { status: 'active' },
-      },
-    },
-    {
-      id: '3',
-      timestamp: '2026-05-03 16:20',
-      user: 'Secretary User',
-      action: 'CREATE',
-      entityType: 'PAYMENT',
-      entityId: 'pay_1',
-      details: 'Recorded payment from Abebe Bekele',
-      changes: {
-        customerId: 'cust_1',
-        amount: 100,
-        status: 'completed',
-      },
-    },
-  ]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterAction, setFilterAction] = useState<'all' | 'CREATE' | 'UPDATE' | 'DELETE'>('all');
+  const [filterAction, setFilterAction] = useState<'all' | 'INSERT' | 'UPDATE' | 'DELETE'>('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+
+  const fetchLogs = async () => {
+    try {
+      const response = await fetch('/api/audit');
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setAuditLogs(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+  }, []);
 
   const userRole = (session?.user as any)?.role;
 
-  if (userRole !== 'admin') {
+  if (userRole !== 'ADMIN') {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <div className="text-center max-w-md p-8 rounded-3xl border border-red-100 bg-red-50/50 backdrop-blur">
@@ -90,7 +68,7 @@ export default function AuditPage() {
 
   const getActionColor = (action: string) => {
     switch (action) {
-      case 'CREATE': return 'bg-green-100 text-green-700';
+      case 'INSERT': return 'bg-green-100 text-green-700';
       case 'UPDATE': return 'bg-blue-100 text-blue-700';
       case 'DELETE': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-600';
@@ -99,11 +77,9 @@ export default function AuditPage() {
 
   const getEntityColor = (entityType: string) => {
     const colors: Record<string, string> = {
-      EKUB: 'bg-purple-100 text-purple-700',
-      CUSTOMER: 'bg-blue-100 text-blue-700',
-      PAYMENT: 'bg-green-100 text-green-700',
-      PAYOUT: 'bg-orange-100 text-orange-700',
-      USER: 'bg-indigo-100 text-indigo-700',
+      users: 'bg-indigo-100 text-indigo-700',
+      customers: 'bg-blue-100 text-blue-700',
+      payments: 'bg-green-100 text-green-700',
     };
     return colors[entityType] || 'bg-gray-100 text-gray-600';
   };
@@ -138,7 +114,7 @@ export default function AuditPage() {
               className="w-full md:w-auto px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
             >
               <option value="all">All Actions</option>
-              <option value="CREATE">Create</option>
+              <option value="INSERT">Insert</option>
               <option value="UPDATE">Update</option>
               <option value="DELETE">Delete</option>
             </select>
@@ -155,13 +131,21 @@ export default function AuditPage() {
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Timestamp</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">User</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Entity</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Table</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Details</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">View</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredLogs.map((log) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">Loading audit logs...</td>
+                </tr>
+              ) : filteredLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">No activity logs found</td>
+                </tr>
+              ) : filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-500 font-mono font-medium">{log.timestamp}</td>
                   <td className="px-6 py-4 text-sm font-bold text-gray-950">{log.user}</td>
@@ -201,7 +185,7 @@ export default function AuditPage() {
                 <X size={20} className="text-gray-500" />
               </button>
             </div>
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-8">
                 <div>
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Timestamp</p>
@@ -220,29 +204,33 @@ export default function AuditPage() {
                   </span>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Entity Type</p>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Table</p>
                   <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${getEntityColor(selectedLog.entityType)}`}>
                     {selectedLog.entityType}
                   </span>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Entity ID</p>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Record ID</p>
                   <p className="text-xs text-gray-600 font-mono bg-gray-100 px-2 py-1 rounded-lg inline-block font-bold">
                     {selectedLog.entityId}
                   </p>
                 </div>
               </div>
-              <div>
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Description</p>
-                <p className="text-sm text-gray-700 bg-gray-50 p-4 rounded-2xl font-medium border border-gray-100 leading-relaxed">
-                  {selectedLog.details}
-                </p>
-              </div>
-              {selectedLog.changes && (
+
+              {selectedLog.old_data && (
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Data Snapshot</p>
-                  <pre className="bg-gray-950 text-green-400 p-6 rounded-2xl text-xs overflow-x-auto font-mono shadow-inner leading-relaxed">
-                    {JSON.stringify(selectedLog.changes, null, 2)}
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Old Data</p>
+                  <pre className="bg-gray-50 text-gray-700 p-4 rounded-2xl text-[10px] overflow-x-auto font-mono border border-gray-100 shadow-inner">
+                    {JSON.stringify(selectedLog.old_data, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {selectedLog.new_data && (
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">New Data</p>
+                  <pre className="bg-gray-950 text-green-400 p-6 rounded-2xl text-[10px] overflow-x-auto font-mono shadow-inner leading-relaxed">
+                    {JSON.stringify(selectedLog.new_data, null, 2)}
                   </pre>
                 </div>
               )}

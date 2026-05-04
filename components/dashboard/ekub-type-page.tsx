@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Search, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
 type PaymentState = 'Paid' | 'Unpaid';
@@ -28,7 +28,9 @@ interface EkubTypePageProps {
   ekubType: 'daily' | 'weekly' | 'monthly' | '105-days' | 'share';
 }
 
-export default function EkubTypePage({ title, subtitle, customers, ekubType }: EkubTypePageProps) {
+export default function EkubTypePage({ title, subtitle, customers: initialCustomers, ekubType }: EkubTypePageProps) {
+  const [customers, setCustomers] = useState<EkubCustomerRow[]>(initialCustomers);
+  const [loading, setLoading] = useState(initialCustomers.length === 0);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'matrix'>('table');
   const [currentPeriod, setCurrentPeriod] = useState(1);
@@ -36,6 +38,25 @@ export default function EkubTypePage({ title, subtitle, customers, ekubType }: E
   const [filterPeriod, setFilterPeriod] = useState<number | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'Paid' | 'Unpaid'>('all');
   const [filterReceived, setFilterReceived] = useState<'all' | 'Yes' | 'No'>('all');
+
+  useEffect(() => {
+    if (initialCustomers.length === 0) {
+      const fetchCustomers = async () => {
+        try {
+          const response = await fetch(`/api/customers?type=${ekubType}`);
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            setCustomers(data);
+          }
+        } catch (error) {
+          console.error('Failed to fetch customers:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchCustomers();
+    }
+  }, [ekubType, initialCustomers.length]);
 
   // Ethiopian Months
   const ethiopianMonths = [
@@ -254,7 +275,12 @@ export default function EkubTypePage({ title, subtitle, customers, ekubType }: E
 
         {/* Content */}
         <div className="p-6">
-          {viewMode === 'table' ? (
+          {loading ? (
+            <div className="text-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#016cc4] mx-auto"></div>
+              <p className="mt-4 text-gray-500 font-medium">Loading customers...</p>
+            </div>
+          ) : viewMode === 'table' ? (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1000px]">
                 <thead className="bg-gray-50 border-b border-gray-200">

@@ -32,7 +32,7 @@ export default function Sidebar() {
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-  const userRole = (session?.user as any)?.role || 'customer';
+  const userRole = (session?.user as any)?.role || 'CUSTOMER';
 
   useEffect(() => {
     const checkScreen = () => {
@@ -47,17 +47,17 @@ export default function Sidebar() {
   }, []);
 
   const menuItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'secretary', 'employee', 'customer'] },
-    { href: '/dashboard/daily', label: 'Daily EKUB', icon: CalendarDays, roles: ['admin', 'manager', 'secretary', 'employee', 'customer'] },
-    { href: '/dashboard/weekly', label: 'Weekly EKUB', icon: CalendarRange, roles: ['admin', 'manager', 'secretary', 'employee', 'customer'] },
-    { href: '/dashboard/monthly', label: 'Monthly EKUB', icon: CalendarClock, roles: ['admin', 'manager', 'secretary', 'employee', 'customer'] },
-    { href: '/dashboard/105-days', label: '105 Days EKUB', icon: CalendarDays, roles: ['admin', 'manager', 'secretary', 'employee', 'customer'] },
-    { href: '/dashboard/share', label: 'Share EKUB', icon: Users, roles: ['admin', 'manager', 'secretary', 'employee', 'customer'] },
-    { href: '/dashboard/customers', label: 'Add Customer', icon: UserPlus, roles: ['admin', 'manager', 'secretary', 'employee'] },
-    { href: '/dashboard/payments', label: 'Add Payment', icon: CreditCard, roles: ['admin', 'manager', 'secretary', 'employee'] },
-    { href: '/dashboard/users', label: 'User Management', icon: Users, roles: ['admin'] },
-    { href: '/dashboard/audit', label: 'Audit Trail', icon: FileText, roles: ['admin'] },
-    { href: '/dashboard/reports', label: 'Reports', icon: FileBarChart, roles: ['admin', 'manager', 'secretary', 'employee'] },
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'CUSTOMER'] },
+    { href: '/dashboard/daily', label: 'Daily EKUB', icon: CalendarDays, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'CUSTOMER'] },
+    { href: '/dashboard/weekly', label: 'Weekly EKUB', icon: CalendarRange, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'CUSTOMER'] },
+    { href: '/dashboard/monthly', label: 'Monthly EKUB', icon: CalendarClock, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'CUSTOMER'] },
+    { href: '/dashboard/105-days', label: '105 Days EKUB', icon: CalendarDays, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'CUSTOMER'] },
+    { href: '/dashboard/share', label: 'Share EKUB', icon: Users, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'CUSTOMER'] },
+    { href: '/dashboard/customers', label: 'Add Customer', icon: UserPlus, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR'] },
+    { href: '/dashboard/payments', label: 'Add Payment', icon: CreditCard, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR'] },
+    { href: '/dashboard/users', label: 'User Management', icon: Users, roles: ['ADMIN'] },
+    { href: '/dashboard/audit', label: 'Audit Trail', icon: FileText, roles: ['ADMIN'] },
+    { href: '/dashboard/reports', label: 'Reports', icon: FileBarChart, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR'] },
   ];
 
   const visibleItems = menuItems.filter(item => item.roles.includes(userRole));

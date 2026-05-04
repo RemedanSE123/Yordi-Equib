@@ -40,44 +40,21 @@ export default function AddPaymentPage() {
 
   const userRole = (session?.user as any)?.role;
 
-  // Mock customers data
-  const customers: Customer[] = [
-    {
-      id: '1',
-      customerId: 'CUST001',
-      fullName: 'Abebe Bekele',
-      phone: '0912345678',
-      ekubType: 'Daily EKUB',
-    },
-    {
-      id: '2',
-      customerId: 'CUST002',
-      fullName: 'Fatima Ahmed',
-      phone: '0923456789',
-      ekubType: 'Weekly EKUB',
-    },
-    {
-      id: '3',
-      customerId: 'CUST003',
-      fullName: 'Kebede Desta',
-      phone: '0934567890',
-      ekubType: 'Monthly EKUB',
-    },
-    {
-      id: '4',
-      customerId: 'CUST004',
-      fullName: 'Tigist Mengistu',
-      phone: '0945678901',
-      ekubType: '105 Days EKUB',
-    },
-    {
-      id: '5',
-      customerId: 'CUST005',
-      fullName: 'Solomon Alemu',
-      phone: '0956789012',
-      ekubType: 'Share EKUB',
-    },
-  ];
+  const [customers, setCustomers] = useState<any[]>([]);
+
+  useEffect(() => {
+    // We'll fetch all customers once or search on demand
+    const fetchCustomers = async () => {
+      try {
+        const response = await fetch('/api/customers');
+        const data = await response.json();
+        if (Array.isArray(data)) setCustomers(data);
+      } catch (error) {
+        console.error('Failed to fetch customers:', error);
+      }
+    };
+    fetchCustomers();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -136,7 +113,7 @@ export default function AddPaymentPage() {
     }
   };
 
-  if (!['admin', 'manager', 'secretary', 'employee'].includes(userRole)) {
+  if (!['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR'].includes(userRole)) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="text-center max-w-md w-full p-6 rounded-xl border border-red-100 bg-red-50">
@@ -161,11 +138,75 @@ export default function AddPaymentPage() {
       setNotFound(false);
       setAmount('');
       setSelectedRound(null);
-      generatePeriods(customer.ekubType);
+      // Generate periods based on ekubType
+      const typeLabelMap: any = {
+        'DAILY': 'Daily EKUB',
+        'WEEKLY': 'Weekly EKUB',
+        'MONTHLY': 'Monthly EKUB',
+        'DAY_105': '105 Days EKUB',
+        'SHARE': 'Share EKUB'
+      };
+      generatePeriods(typeLabelMap[customer.ekubType] || customer.ekubType);
       setSuccess(false);
     } else {
       setFoundCustomer(null);
       setNotFound(true);
+    }
+  };
+
+  const handleSubmitPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRound) {
+      alert('Please select a round');
+      return;
+    }
+    const activePeriods = selectedPeriods.filter(p => p.selected);
+    if (activePeriods.length === 0) {
+      alert('Please select at least one period');
+      return;
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // Record payments for each selected period
+      const promises = activePeriods.map(period => 
+        fetch('/api/payments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_id: foundCustomer.id,
+            customer_name: foundCustomer.fullName,
+            phone: foundCustomer.phone,
+            ekub_type: foundCustomer.ekubType,
+            amount: parseFloat(amount),
+            round_number: selectedRound,
+            payment_period: period.value,
+            payment_status: 'PAID',
+          }),
+        })
+      );
+
+      const results = await Promise.all(promises);
+      if (results.every(r => r.ok)) {
+        setSuccess(true);
+        setAmount('');
+        setSelectedRound(null);
+        const resetPeriods = selectedPeriods.map(p => ({ ...p, selected: false }));
+        setSelectedPeriods(resetPeriods);
+        setTimeout(() => setSuccess(false), 3000);
+      } else {
+        const errs = await Promise.all(results.filter(r => !r.ok).map(r => r.json()));
+        alert(errs[0]?.error || 'Some payments failed to record');
+      }
+    } catch (error) {
+      alert('Failed to connect to server');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -244,35 +285,6 @@ export default function AddPaymentPage() {
   const getTotalAmount = () => {
     const amountNum = parseFloat(amount) || 0;
     return amountNum * getSelectedPeriodsCount();
-  };
-
-  const handleSubmitPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedRound) {
-      alert('Please select a round');
-      return;
-    }
-    if (getSelectedPeriodsCount() === 0) {
-      alert('Please select at least one period');
-      return;
-    }
-    if (!amount || parseFloat(amount) <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-
-    setSubmitting(true);
-
-    setTimeout(() => {
-      setSubmitting(false);
-      setSuccess(true);
-      setAmount('');
-      setSelectedRound(null);
-      const resetPeriods = selectedPeriods.map(p => ({ ...p, selected: false }));
-      setSelectedPeriods(resetPeriods);
-
-      setTimeout(() => setSuccess(false), 3000);
-    }, 1000);
   };
 
   return (

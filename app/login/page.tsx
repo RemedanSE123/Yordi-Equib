@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Smartphone, Users, Wallet } from 'lucide-react';
+import { Phone, Lock, Eye, EyeOff, LogIn, Shield, Sparkles } from 'lucide-react';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,7 +27,7 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError('Invalid phone number or password');
       } else if (result?.ok) {
         router.push('/dashboard');
       }
@@ -37,116 +39,184 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,#f4f9ff_0%,#e8f2fb_52%,#dbeafe_100%)] text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col lg:flex-row">
-        <div className="flex flex-1 items-center px-6 py-10 lg:px-12 xl:px-16">
-          <div className="max-w-xl">
-            <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-[#016cc4]/15 bg-white/70 px-4 py-2 text-sm font-medium text-[#016cc4] shadow-sm backdrop-blur">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#016cc4]" />
-              Ethiopian Traditional EKUB Management Platform
-            </div>
+    <div className="min-h-screen flex flex-col md:flex-row">
+      {/* Left Side - Image */}
+      <div className="hidden md:block md:w-1/2 lg:w-2/3 relative min-h-screen">
+        <Image
+          src="/lp2.jpg"
+          alt="YORDI EQUIB System"
+          fill
+          className="object-cover"
+          priority
+        />
+        {/* Gradient overlay for better text contrast */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
 
-            <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-              YORDI EQUIB SYSTEM
-            </h1>
-            <p className="mt-5 max-w-lg text-base leading-7 text-slate-600 sm:text-lg">
-              Manage EKUB contributions, members, payouts, and reporting in one secure platform built for mobile, tablet, and desktop.
+        {/* Content overlay on image */}
+        <div className="absolute inset-0 flex flex-col justify-between p-8 lg:p-12">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl backdrop-blur-sm flex items-center justify-center border border-white/30">
+              <Shield className="text-white" size={20} />
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-sm">YORDI EQUIB</h3>
+              <p className="text-white/60 text-xs">Traditional EKUB Management</p>
+            </div>
+          </div>
+
+          <div className="max-w-md">
+            <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4 leading-tight">
+              Ethiopian Traditional <br />
+              <span className="text-[#016cc4]">EKUB Management</span> Platform
+            </h2>
+            <p className="text-white/70 text-sm lg:text-base">
+              Manage contributions, members, payouts, and reporting in one secure platform built for mobile, tablet, and desktop.
             </p>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
-                <ShieldCheck className="h-5 w-5 text-[#016cc4]" />
-                <p className="mt-3 text-sm font-semibold text-slate-900">Role-based access</p>
-                <p className="mt-1 text-sm text-slate-600">Admin, Manager, Secretary, Employee, and Customer flows.</p>
+            <div className="flex flex-wrap gap-4 mt-6">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full" />
+                <span className="text-white/80 text-xs">500+ Active Users</span>
               </div>
-              <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
-                <Smartphone className="h-5 w-5 text-[#016cc4]" />
-                <p className="mt-3 text-sm font-semibold text-slate-900">Mobile first</p>
-                <p className="mt-1 text-sm text-slate-600">Responsive dashboard layouts and login experience.</p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-400 rounded-full" />
+                <span className="text-white/80 text-xs">5 EKUB Types</span>
               </div>
-              <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
-                <Users className="h-5 w-5 text-[#016cc4]" />
-                <p className="mt-3 text-sm font-semibold text-slate-900">Member management</p>
-                <p className="mt-1 text-sm text-slate-600">Track users, customers, and round participation.</p>
-              </div>
-              <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
-                <Wallet className="h-5 w-5 text-[#016cc4]" />
-                <p className="mt-3 text-sm font-semibold text-slate-900">ETB reporting</p>
-                <p className="mt-1 text-sm text-slate-600">Clear payment totals and payout visibility.</p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full" />
+                <span className="text-white/80 text-xs">24/7 Support</span>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex flex-1 items-center justify-center px-6 pb-10 lg:px-12 lg:py-10">
-          <div className="w-full max-w-md rounded-[28px] border border-white/70 bg-white/90 p-8 shadow-[0_20px_80px_rgba(1,108,196,0.12)] backdrop-blur-xl">
-            <div className="mb-8 flex justify-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-[#016cc4] text-2xl font-black text-white shadow-lg shadow-[#016cc4]/25">
-                YE
-              </div>
-            </div>
-
-            <div className="text-center">
-              <h2 className="text-2xl font-bold tracking-tight text-slate-950">
-                Sign in to continue
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Use your phone number and password to access the system.
-              </p>
-            </div>
-
-            {error && (
-              <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              <div>
-                <label htmlFor="phone" className="mb-2 block text-sm font-semibold text-slate-700">
-                  Phone Number
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  placeholder="+251901234567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#016cc4] focus:ring-4 focus:ring-[#016cc4]/10"
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="password" className="mb-2 block text-sm font-semibold text-slate-700">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#016cc4] focus:ring-4 focus:ring-[#016cc4]/10"
-                  disabled={loading}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#016cc4] px-4 text-sm font-semibold text-white transition hover:bg-[#0157a0] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-              </button>
-            </form>
-
-            <div className="mt-6 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              Demo credentials: <span className="font-semibold text-slate-900">+251901234567</span> / <span className="font-semibold text-slate-900">Yordi@321#</span>
-            </div>
+          <div className="text-white/40 text-xs">
+            © 2024 YORDI EQUIB SYSTEM. All rights reserved.
           </div>
         </div>
       </div>
+
+      {/* Right Side - Login Form */}
+      <div className="flex-1 md:w-1/2 lg:w-1/3 flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 md:p-8">
+        <div className="w-full max-w-md bg-white p-8 sm:p-10 rounded-[32px] border border-gray-300 shadow-[0_30px_70px_rgba(0,0,0,0.2)]">
+          {/* Logo */}
+          <div className="text-center mb-6 md:mb-8">
+            <div className="flex justify-center mb-4">
+              <Image
+                src="/logo.png"
+                alt="YORDI EQUIB Logo"
+                width={180}
+                height={180}
+                className="object-contain w-32 sm:w-40 md:w-48 h-auto"
+                priority
+              />
+            </div>
+
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              Welcome Back
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2">
+              Sign in to your account to continue
+            </p>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 sm:mb-6 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 text-center animate-shake">
+              {error}
+            </div>
+          )}
+
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+            {/* Phone Input */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
+                Phone Number
+              </label>
+              <div className="relative group">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#016cc4] transition-colors z-10" size={18} />
+                <input
+                  type="tel"
+                  placeholder="0912345678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition-all bg-white/80"
+                  disabled={loading}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Password Input */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
+                Password
+              </label>
+              <div className="relative group">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#016cc4] transition-colors z-10" size={18} />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-12 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition-all bg-white/80"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Forgot Password Link */}
+            <div className="text-right">
+              <a href="#" className="text-xs sm:text-sm text-[#016cc4] hover:underline transition-colors">
+                Forgot password?
+              </a>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="relative w-full py-2.5 sm:py-3 bg-gradient-to-r from-[#016cc4] to-[#0158a3] text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-[#016cc4]/25 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 overflow-hidden group"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <LogIn size={18} />
+                  Sign In
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Footer */}
+          <div className="mt-6 sm:mt-8 text-center">
+            <p className="text-[10px] sm:text-xs text-gray-400">
+              Secure Login • Powered by YORDI EQUIB
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+        .animate-shake {
+          animation: shake 0.3s ease-in-out;
+        }
+      `}</style>
     </div>
   );
 }

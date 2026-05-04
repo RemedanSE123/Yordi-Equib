@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Plus, Edit2, Trash2, Search, ShieldAlert, X, DollarSign, Calendar, Users } from 'lucide-react';
 
@@ -10,86 +10,44 @@ interface Customer {
   fullName: string;
   phone: string;
   ekubType: string;
-  todayContribution: number;
-  totalContribution: number;
-  status: 'active' | 'inactive';
-  joinDate: string;
+  isActive: boolean;
 }
 
 export default function CustomersPage() {
   const { data: session } = useSession();
-  const [customers, setCustomers] = useState<Customer[]>([
-    {
-      id: '1',
-      customerId: 'CUST001',
-      fullName: 'Abebe Bekele',
-      phone: '0912345678',
-      ekubType: 'Daily EKUB',
-      todayContribution: 100,
-      totalContribution: 2500,
-      status: 'active',
-      joinDate: '2024-01-01',
-    },
-    {
-      id: '2',
-      customerId: 'CUST002',
-      fullName: 'Fatima Ahmed',
-      phone: '0923456789',
-      ekubType: 'Weekly EKUB',
-      todayContribution: 250,
-      totalContribution: 1750,
-      status: 'active',
-      joinDate: '2024-01-05',
-    },
-    {
-      id: '3',
-      customerId: 'CUST003',
-      fullName: 'Kebede Desta',
-      phone: '0934567890',
-      ekubType: 'Monthly EKUB',
-      todayContribution: 0,
-      totalContribution: 1200,
-      status: 'inactive',
-      joinDate: '2024-01-10',
-    },
-    {
-      id: '4',
-      customerId: 'CUST004',
-      fullName: 'Tigist Mengistu',
-      phone: '0945678901',
-      ekubType: '105 Days EKUB',
-      todayContribution: 50,
-      totalContribution: 800,
-      status: 'active',
-      joinDate: '2024-01-15',
-    },
-    {
-      id: '5',
-      customerId: 'CUST005',
-      fullName: 'Solomon Alemu',
-      phone: '0956789012',
-      ekubType: 'Share EKUB',
-      todayContribution: 60,
-      totalContribution: 600,
-      status: 'active',
-      joinDate: '2024-01-20',
-    },
-  ]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [ekubGroups, setEkubGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+  const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [formData, setFormData] = useState({
-    customerId: '',
-    fullName: '',
+    customer_code: '',
+    full_name: '',
     phone: '',
-    ekubType: '',
+    ekub_type: 'DAILY',
   });
+
+  const fetchData = async () => {
+    try {
+      const custRes = await fetch('/api/customers');
+      const custList = await custRes.json();
+      if (Array.isArray(custList)) setCustomers(custList);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const userRole = (session?.user as any)?.role;
 
-  const ekubTypes = ['Daily EKUB', 'Weekly EKUB', 'Monthly EKUB', '105 Days EKUB', 'Share EKUB'];
-
-  if (!['admin', 'manager', 'secretary', 'employee'].includes(userRole)) {
+  if (!['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR'].includes(userRole)) {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <div className="text-center max-w-md p-8 rounded-3xl border border-red-100 bg-red-50/50 backdrop-blur">
@@ -104,62 +62,83 @@ export default function CustomersPage() {
   }
 
   const filteredCustomers = customers.filter(c =>
-    c.customerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.phone.includes(searchTerm)
+    (c.customerId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.phone || '').includes(searchTerm)
   );
 
-  const handleAddCustomer = (e: React.FormEvent) => {
+  const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newCustomer: Customer = {
-      id: `cust_${Date.now()}`,
-      customerId: formData.customerId,
-      fullName: formData.fullName,
-      phone: formData.phone,
-      ekubType: formData.ekubType,
-      todayContribution: 0,
-      totalContribution: 0,
-      status: 'active',
-      joinDate: new Date().toISOString().split('T')[0],
-    };
-    setCustomers([...customers, newCustomer]);
-    setFormData({ customerId: '', fullName: '', phone: '', ekubType: '' });
-    setShowForm(false);
-  };
-
-  const handleEditCustomer = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingCustomer) {
-      setCustomers(customers.map(c =>
-        c.id === editingCustomer.id
-          ? {
-            ...c,
-            customerId: formData.customerId,
-            fullName: formData.fullName,
-            phone: formData.phone,
-            ekubType: formData.ekubType
-          }
-          : c
-      ));
-      setEditingCustomer(null);
-      setFormData({ customerId: '', fullName: '', phone: '', ekubType: '' });
-      setShowForm(false);
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (response.ok) {
+        setMessage({ text: 'Customer added successfully!', type: 'success' });
+        setTimeout(() => {
+          fetchData();
+          closeForm();
+        }, 1500);
+      } else {
+        const err = await response.json();
+        setMessage({ text: err.error || 'Failed to add customer', type: 'error' });
+      }
+    } catch (error) {
+      setMessage({ text: 'Failed to connect to server', type: 'error' });
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleEditCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCustomer) return;
+    try {
+      const response = await fetch(`/api/customers/${editingCustomer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (response.ok) {
+        setMessage({ text: 'Customer updated successfully!', type: 'success' });
+        setTimeout(() => {
+          fetchData();
+          closeForm();
+        }, 1500);
+      } else {
+        const err = await response.json();
+        setMessage({ text: err.error || 'Failed to update customer', type: 'error' });
+      }
+    } catch (error) {
+      setMessage({ text: 'Failed to connect to server', type: 'error' });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this customer?')) {
-      setCustomers(customers.filter(c => c.id !== id));
+      try {
+        const response = await fetch(`/api/customers/${id}`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          fetchData();
+        } else {
+          const err = await response.json();
+          alert(err.error || 'Failed to delete customer');
+        }
+      } catch (error) {
+        alert('Failed to connect to server');
+      }
     }
   };
 
-  const openEditForm = (customer: Customer) => {
+  const openEditForm = (customer: any) => {
     setEditingCustomer(customer);
     setFormData({
-      customerId: customer.customerId,
-      fullName: customer.fullName,
+      customer_code: customer.customerId,
+      full_name: customer.fullName,
       phone: customer.phone,
-      ekubType: customer.ekubType,
+      ekub_type: customer.ekubType,
     });
     setShowForm(true);
   };
@@ -167,7 +146,8 @@ export default function CustomersPage() {
   const closeForm = () => {
     setShowForm(false);
     setEditingCustomer(null);
-    setFormData({ customerId: '', fullName: '', phone: '', ekubType: '' });
+    setMessage(null);
+    setFormData({ customer_code: '', full_name: '', phone: '', ekub_type: 'DAILY' });
   };
 
   return (
@@ -207,19 +187,24 @@ export default function CustomersPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">No.</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer ID</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Phone</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">EKUB Type</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Today (ETB)</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Total (ETB)</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Paid (ETB)</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredCustomers.map((customer) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-8 text-gray-500">Loading customers...</td>
+                </tr>
+              ) : filteredCustomers.map((customer, index) => (
                 <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-400">{index + 1}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{customer.customerId}</td>
                   <td className="px-6 py-4 text-sm text-gray-800">{customer.fullName}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{customer.phone}</td>
@@ -228,18 +213,15 @@ export default function CustomersPage() {
                       {customer.ekubType}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-green-600">
-                    ETB {customer.todayContribution.toLocaleString()}
-                  </td>
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                    ETB {customer.totalContribution.toLocaleString()}
+                    ETB {(customer.totalPaid || 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-sm">
-                    <span className={`inline-block px-2 py-1 rounded-lg text-xs font-medium ${customer.status === 'active'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-600'
+                    <span className={`inline-block px-2 py-1 rounded-lg text-xs font-medium ${customer.isActive
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-600'
                       }`}>
-                      {customer.status === 'active' ? 'Active' : 'Inactive'}
+                      {customer.isActive ? 'ACTIVE' : 'INACTIVE'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm">
@@ -281,6 +263,15 @@ export default function CustomersPage() {
               </button>
             </div>
 
+            {message && (
+              <div className="px-6 pt-4">
+                <div className={`p-3 rounded-xl text-sm font-medium text-center ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'
+                  }`}>
+                  {message.text}
+                </div>
+              </div>
+            )}
+
             <form onSubmit={editingCustomer ? handleEditCustomer : handleAddCustomer} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -288,8 +279,8 @@ export default function CustomersPage() {
                 </label>
                 <input
                   type="text"
-                  value={formData.customerId}
-                  onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
+                  value={formData.customer_code}
+                  onChange={(e) => setFormData({ ...formData, customer_code: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition"
                   placeholder="e.g., CUST001"
                   required
@@ -302,8 +293,8 @@ export default function CustomersPage() {
                 </label>
                 <input
                   type="text"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition"
                   placeholder="Enter full name"
                   required
@@ -329,15 +320,16 @@ export default function CustomersPage() {
                   EKUB Type
                 </label>
                 <select
-                  value={formData.ekubType}
-                  onChange={(e) => setFormData({ ...formData, ekubType: e.target.value })}
+                  value={formData.ekub_type}
+                  onChange={(e) => setFormData({ ...formData, ekub_type: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition bg-white"
                   required
                 >
-                  <option value="">Select EKUB Type</option>
-                  {ekubTypes.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
+                  <option value="DAILY">Daily EKUB</option>
+                  <option value="WEEKLY">Weekly EKUB</option>
+                  <option value="MONTHLY">Monthly EKUB</option>
+                  <option value="DAY_105">105 Days EKUB</option>
+                  <option value="SHARE">Share EKUB</option>
                 </select>
               </div>
 
