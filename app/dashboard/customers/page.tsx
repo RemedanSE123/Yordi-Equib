@@ -193,15 +193,13 @@ export default function CustomersPage() {
           <h1 className="text-3xl font-bold text-gray-900">Customers</h1>
           <p className="text-gray-500 mt-1">Manage EKUB customers and members</p>
         </div>
-        {!isEmployee && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 bg-[#016cc4] text-white px-5 py-2.5 rounded-xl hover:bg-[#0158a3] transition shadow-sm font-medium"
-          >
-            <Plus size={18} />
-            Add Customer
-          </button>
-        )}
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 bg-[#016cc4] text-white px-5 py-2.5 rounded-xl hover:bg-[#0158a3] transition shadow-sm font-medium"
+        >
+          <Plus size={18} />
+          Add Customer
+        </button>
       </div>
 
       {/* Filters & Search */}
