@@ -73,17 +73,54 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Parse body BEFORE try so variables are accessible in catch
+  const body = await request.json().catch(() => ({}));
+  const { customer_code, full_name, phone, ekub_type } = body;
+
   try {
     const session = await getServerSession(authConfig);
     if (!session || !['ADMIN', 'MANAGER', 'SECRETARY', 'EMPLOYEE'].includes((session.user as any).role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { customer_code, full_name, phone, ekub_type } = body;
-
     if (!customer_code || !full_name || !phone || !ekub_type) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ error: 'All fields are required: Customer ID, Full Name, Phone Number, and EKUB Type.' }, { status: 400 });
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      return NextResponse.json({ error: 'Phone number must be exactly 10 digits.' }, { status: 400 });
+    }
+
+    // ── Pre-insert duplicate checks ───────────────────────────────────────────
+    const dupCheck = await db.query<any>(
+      `SELECT
+         COUNT(*) FILTER (WHERE LOWER(full_name) = LOWER($1)) AS name_count,
+         COUNT(*) FILTER (WHERE customer_code = $2)            AS code_count,
+         COUNT(*) FILTER (WHERE phone = $3)                    AS phone_count
+       FROM customers`,
+      [full_name, customer_code, phone],
+      (session.user as any).id
+    );
+
+    const { name_count, code_count, phone_count } = dupCheck.rows[0];
+
+    if (Number(code_count) > 0) {
+      return NextResponse.json(
+        { error: `Customer ID "${customer_code}" is already in use. Please choose a different Customer ID.` },
+        { status: 409 }
+      );
+    }
+    if (Number(phone_count) > 0) {
+      return NextResponse.json(
+        { error: 'This phone number is already registered to another customer. Please use a different phone number.' },
+        { status: 409 }
+      );
+    }
+    if (Number(name_count) > 0) {
+      return NextResponse.json(
+        { error: `A customer named "${full_name}" already exists. Please verify the name or use a unique full name.` },
+        { status: 409 }
+      );
     }
 
     const customer = await db.createCustomer({
@@ -94,8 +131,30 @@ export async function POST(request: Request) {
     }, (session.user as any).id);
 
     return NextResponse.json(customer, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+
+    // PostgreSQL unique constraint violation (duplicate key)
+    if (error?.code === '23505') {
+      const detail: string = error?.detail || '';
+      if (detail.includes('customer_code')) {
+        return NextResponse.json(
+          { error: `Customer ID "${customer_code}" is already in use. Please choose a different Customer ID.` },
+          { status: 409 }
+        );
+      }
+      if (detail.includes('phone')) {
+        return NextResponse.json(
+          { error: 'This phone number is already registered to another customer. Please use a different phone number.' },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'A customer with this Customer ID or phone number already exists.' },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 });
   }
 }

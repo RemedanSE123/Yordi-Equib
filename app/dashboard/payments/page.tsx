@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, ShieldAlert, User, Phone, Calendar, DollarSign, AlertCircle, CheckCircle, ChevronDown, X, History, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
+import YearPicker from '@/components/ui/year-picker';
 
 interface Customer {
   id: string;
@@ -23,6 +24,7 @@ interface Period {
 
 export default function AddPaymentPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialCustomerId = searchParams.get('customerId');
 
@@ -34,6 +36,7 @@ export default function AddPaymentPage() {
   const [selectedPeriods, setSelectedPeriods] = useState<Period[]>([]);
   const [alreadyPaidPeriods, setAlreadyPaidPeriods] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [ethiopianYear, setEthiopianYear] = useState<number>(2018);
   const [openDropdown, setOpenDropdown] = useState<'round' | 'period' | null>(null);
   const [searchRound, setSearchRound] = useState('');
   const [searchPeriod, setSearchPeriod] = useState('');
@@ -246,6 +249,7 @@ export default function AddPaymentPage() {
             round_number: getRoundLabel(),
             payment_period: period.label,
             payment_status: 'PAID',
+            ethiopian_year: ethiopianYear,
           }),
         });
         results.push(res);
@@ -255,11 +259,18 @@ export default function AddPaymentPage() {
 
       if (results.every(r => r.ok)) {
         toast.success('Payment Successful', {
-          description: `Successfully recorded ${activePeriods.length} payment(s).`
+          description: `Successfully recorded ${activePeriods.length} payment(s). Redirecting…`
         });
-        setAmount('');
-        setSelectedRound(null);
-        setAlreadyPaidPeriods([]);
+        // Redirect to the matching EKUB page so user can verify
+        const ekubRouteMap: Record<string, string> = {
+          'DAILY':   '/dashboard/daily',
+          'WEEKLY':  '/dashboard/weekly',
+          'MONTHLY': '/dashboard/monthly',
+          'DAY_105': '/dashboard/105-days',
+          'SHARE':   '/dashboard/share',
+        };
+        const route = ekubRouteMap[foundCustomer!.ekubType?.toUpperCase()] || '/dashboard';
+        setTimeout(() => router.push(route), 1500);
       } else {
         const errs = await Promise.all(results.filter(r => !r.ok).map(r => r.json()));
         toast.error('Payment Failed', {
@@ -284,7 +295,11 @@ export default function AddPaymentPage() {
     } else if (normalizedType.includes('WEEKLY')) {
       rawPeriods = Array.from({ length: 60 }, (_, i) => ({ value: i + 1, label: `Week ${i + 1}` }));
     } else if (normalizedType.includes('MONTHLY')) {
-      const months = ['Meskerem', 'Tikimt', 'Hidar', 'Tahsas', 'Tir', 'Yekatit', 'Megabit', 'Miazia', 'Ginbot', 'Sene', 'Hamle', 'Nehasie'];
+      const months = [
+        'መስከረም', 'ጥቅምት', 'ህዳር', 'ታህሳስ',
+        'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዚያ',
+        'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ'
+      ];
       rawPeriods = months.map((month, i) => ({ value: i + 1, label: month }));
     } else if (normalizedType.includes('SHARE')) {
       rawPeriods = Array.from({ length: 60 }, (_, i) => ({ value: i + 1, label: `Day ${i + 1}` }));
@@ -333,28 +348,29 @@ export default function AddPaymentPage() {
     if (period.isPaid) return; // Cannot uncheck paid ones
 
     if (!period.selected) {
-      // Check if all previous are paid or selected
-      const allPreviousReady = selectedPeriods
+      // Find the first unpaid/unselected period before this one
+      const firstMissing = selectedPeriods
         .slice(0, index)
-        .every(p => p.isPaid || p.selected);
-      
-      if (!allPreviousReady) {
-        toast.warning('Invalid Sequence', {
-          description: 'Please select periods in order. You cannot skip a period.',
-          icon: <AlertCircle size={16} className="text-amber-500" />
+        .find(p => !p.isPaid && !p.selected);
+
+      if (firstMissing) {
+        toast.warning('⚠️ Wrong Order — Select in Sequence', {
+          description: `You must select "${firstMissing.label}" before selecting "${period.label}". Payments must be recorded in order — do not skip any period.`,
+          duration: 5000,
         });
         return;
       }
     } else {
-      // Check if all subsequent are NOT selected
-      const anySubsequentSelected = selectedPeriods
+      // Find the last selected (unpaid) period after this one
+      const lastSelected = [...selectedPeriods]
         .slice(index + 1)
-        .some(p => p.selected && !p.isPaid);
-        
-      if (anySubsequentSelected) {
-        toast.warning('Deselection Error', {
-          description: 'Please deselect periods from the end of your selection.',
-          icon: <AlertCircle size={16} className="text-amber-500" />
+        .filter(p => p.selected && !p.isPaid)
+        .at(-1);
+
+      if (lastSelected) {
+        toast.warning('⚠️ Remove in Reverse Order', {
+          description: `You cannot remove "${period.label}" while "${lastSelected.label}" is still selected. Please deselect "${lastSelected.label}" first, then come back to remove this one.`,
+          duration: 5000,
         });
         return;
       }
@@ -494,6 +510,18 @@ export default function AddPaymentPage() {
                         step="1"
                       />
                     </div>
+                  </div>
+
+                {/* Ethiopian Year Field - Calendar Year Picker */}
+                  <div>
+                    <YearPicker
+                      label="Ethiopian Year"
+                      required
+                      value={ethiopianYear}
+                      onChange={setEthiopianYear}
+                      minYear={2010}
+                      maxYear={2030}
+                    />
                   </div>
 
                   {/* Round Selection (1-12, single select) */}

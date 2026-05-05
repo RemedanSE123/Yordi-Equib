@@ -156,18 +156,18 @@ class Database {
 
   // Payment operations
   async createPayment(payment: Partial<Payment>, adminId?: string): Promise<Payment> {
-    const { customer_id, customer_name, phone, ekub_type, amount, round_number, payment_period, payment_status, payment_date } = payment;
+    const { customer_id, customer_name, phone, ekub_type, amount, round_number, payment_period, payment_status, payment_date, ethiopian_year } = payment as any;
     const validatedAdminId = adminId && this.isUUID(adminId) ? adminId : null;
     const res = await this.query<Payment>(
       `INSERT INTO payments (
         customer_id, customer_name, phone, ekub_type, 
         amount, round_number, payment_period, 
-        payment_status, payment_date, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        payment_status, payment_date, created_by, ethiopian_year
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
-        customer_id, customer_name, phone, ekub_type, 
-        amount, round_number, payment_period, 
-        payment_status, payment_date, validatedAdminId
+        customer_id, customer_name, phone, ekub_type,
+        amount, round_number, payment_period,
+        payment_status, payment_date, validatedAdminId, ethiopian_year ?? null
       ],
       validatedAdminId || undefined
     );
@@ -188,7 +188,7 @@ class Database {
 
   async updatePayment(id: string, payment: Partial<Payment>, adminId?: string): Promise<Payment> {
     if (!this.isUUID(id)) throw new Error('Invalid payment ID');
-    const updatableFields = ['amount', 'round_number', 'payment_period', 'payment_status', 'payment_date'];
+    const updatableFields = ['amount', 'round_number', 'payment_period', 'payment_status', 'payment_date', 'ethiopian_year'];
     const fields = Object.keys(payment).filter(k => updatableFields.includes(k) && payment[k as keyof Payment] !== undefined);
     
     if (fields.length === 0) return this.getPaymentById(id) as any;

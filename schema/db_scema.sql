@@ -87,6 +87,14 @@ CREATE TABLE payments (
 
   payment_date DATE DEFAULT CURRENT_DATE,
 
+  -- Ethiopian fiscal year (e.g. 2018)
+  ethiopian_year INTEGER,
+
+--   ALTER TABLE payments ADD COLUMN IF NOT EXISTS ethiopian_year INTEGER;
+-- CREATE INDEX IF NOT EXISTS idx_payments_year ON payments(ethiopian_year);
+
+  
+
   created_by UUID,
   updated_by UUID,
 
@@ -101,6 +109,7 @@ CREATE TABLE payments (
 CREATE INDEX idx_payments_customer ON payments(customer_id);
 CREATE INDEX idx_payments_round ON payments(round_number);
 CREATE INDEX idx_payments_period ON payments(payment_period);
+CREATE INDEX idx_payments_year ON payments(ethiopian_year);
 
 
 -- =========================================

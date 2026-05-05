@@ -4,13 +4,14 @@ import { useMemo, useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Search, ChevronLeft, ChevronRight, Calendar, Edit2, Trash2, Filter, User, AlertCircle, Database, CheckCircle2, X, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
+import YearPicker from '@/components/ui/year-picker';
 
 type PaymentState = 'Paid' | 'Unpaid';
 
 interface Payment {
   id: string;
   customer_id: string;
-  customer_code?: string; // Reference ID
+  customer_code?: string;
   customer_name: string;
   phone: string;
   ekub_type: string;
@@ -20,6 +21,7 @@ interface Payment {
   payment_status: string;
   recorded_by_name?: string;
   payment_date: string;
+  ethiopian_year?: number;
 }
 
 interface Customer {
@@ -51,6 +53,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
   const [filterPeriod, setFilterPeriod] = useState<string | 'all'>('all');
   const [filterRecordedBy, setFilterRecordedBy] = useState<string | 'all'>('all');
   const [filterDate, setFilterDate] = useState<string>('');
+  const [filterYear, setFilterYear] = useState<string>('all');
   
   // Edit State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -58,6 +61,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
   const [editAmount, setEditAmount] = useState('');
   const [editRound, setEditRound] = useState('');
   const [editPeriod, setEditPeriod] = useState('');
+  const [editYear, setEditYear] = useState<number>(2018);
 
   const fetchData = async () => {
     try {
@@ -80,10 +84,11 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
     fetchData();
   }, [ekubType]);
 
-  // Ethiopian Months
+  // Ethiopian Months (Amharic)
   const ethiopianMonths = [
-    'Meskerem', 'Tikimt', 'Hidar', 'Tahsas', 'Tir', 'Yekatit',
-    'Megabit', 'Miazia', 'Ginbot', 'Sene', 'Hamle', 'Nehasie'
+    'መስከረም', 'ጥቅምት', 'ህዳር', 'ታህሳስ',
+    'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዚያ',
+    'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ'
   ];
 
   // Get total periods
@@ -135,6 +140,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
       const matchesRound = filterRound === 'all' || p.round_number === `Round ${filterRound}`;
       const matchesPeriod = filterPeriod === 'all' || p.payment_period === getPeriodLabel(Number(filterPeriod));
       const matchesRecordedBy = filterRecordedBy === 'all' || p.recorded_by_name === filterRecordedBy;
+      const matchesYear = filterYear === 'all' || String(p.ethiopian_year) === filterYear;
       
       let matchesDate = true;
       if (filterDate) {
@@ -142,9 +148,9 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
         matchesDate = pDate === filterDate;
       }
 
-      return matchesSearch && matchesRound && matchesPeriod && matchesRecordedBy && matchesDate;
+      return matchesSearch && matchesRound && matchesPeriod && matchesRecordedBy && matchesDate && matchesYear;
     });
-  }, [payments, searchTerm, filterRound, filterPeriod, filterRecordedBy, filterDate]);
+  }, [payments, searchTerm, filterRound, filterPeriod, filterRecordedBy, filterDate, filterYear]);
 
   const uniqueRecorders = useMemo(() => {
     const recorders = new Set<string>();
@@ -188,6 +194,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
     setEditAmount(payment.amount.toString());
     setEditRound(payment.round_number.replace('Round ', ''));
     setEditPeriod(payment.payment_period);
+    setEditYear(payment.ethiopian_year ?? 2018);
     setIsEditModalOpen(true);
   };
 
@@ -203,6 +210,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
           amount: parseFloat(editAmount),
           round_number: `Round ${editRound}`,
           payment_period: editPeriod,
+          ethiopian_year: editYear,
         }),
       });
 
@@ -224,10 +232,11 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
     setFilterPeriod('all');
     setFilterRecordedBy('all');
     setFilterDate('');
+    setFilterYear('all');
     toast.info('Filters cleared');
   };
 
-  const isFilterActive = searchTerm !== '' || filterRound !== 'all' || filterPeriod !== 'all' || filterRecordedBy !== 'all' || filterDate !== '';
+  const isFilterActive = searchTerm !== '' || filterRound !== 'all' || filterPeriod !== 'all' || filterRecordedBy !== 'all' || filterDate !== '' || filterYear !== 'all';
 
   const handlePrevPeriod = () => {
     if (currentPeriod > 1) setCurrentPeriod(currentPeriod - 1);
@@ -344,6 +353,18 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
             ))}
           </select>
 
+          {/* Year filter */}
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(e.target.value)}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium focus:border-[#016cc4] outline-none bg-white"
+          >
+            <option value="all">All Years</option>
+            {Array.from(new Set(payments.map(p => p.ethiopian_year).filter(Boolean))).sort().map(y => (
+              <option key={y} value={String(y)}>{y}</option>
+            ))}
+          </select>
+
           {viewMode === 'table' && (
             <>
               <select
@@ -410,10 +431,11 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
               <table className="w-full min-w-[1100px]">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-12">No.</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">No.</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Customer ID</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Full Name</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Phone</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Year</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Round</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Period</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Payment</th>
@@ -429,6 +451,9 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
                       <td className="px-4 py-3 text-sm font-bold text-[#016cc4]">{payment.customer_code || payment.customer_id.substring(0, 8)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{payment.customer_name}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{payment.phone}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-purple-700">
+                        {payment.ethiopian_year ?? '—'}
+                      </td>
                       <td className="px-4 py-3 text-sm font-semibold text-[#016cc4]">{payment.round_number}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{payment.payment_period}</td>
                       <td className="px-4 py-3 text-sm">
@@ -588,6 +613,18 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Ethiopian Year */}
+              <div className="space-y-1.5">
+                <YearPicker
+                  label="Ethiopian Year"
+                  required
+                  value={editYear}
+                  onChange={setEditYear}
+                  minYear={2010}
+                  maxYear={2030}
+                />
               </div>
 
               <div className="flex gap-3 pt-2">

@@ -2,7 +2,64 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { Plus, Edit2, Trash2, Search, ShieldAlert, X, Users as UsersIcon, Copy, Key, Phone, Check, Lock, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, ShieldAlert, X, Users as UsersIcon, Copy, Key, Phone, Check, Lock, ShieldCheck, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { Toaster } from '@/components/ui/toaster';
+
+// ── Password rule helpers ──────────────────────────────────────────────────────
+const PASSWORD_RULES = [
+  { id: 'length',  label: 'At least 8 characters',               test: (p: string) => p.length >= 8 },
+  { id: 'upper',   label: 'Uppercase letter (A-Z)',               test: (p: string) => /[A-Z]/.test(p) },
+  { id: 'lower',   label: 'Lowercase letter (a-z)',               test: (p: string) => /[a-z]/.test(p) },
+  { id: 'number',  label: 'Number (0-9)',                         test: (p: string) => /[0-9]/.test(p) },
+  { id: 'special', label: 'Special character (@, #, $, !…)',      test: (p: string) => /[@#$!%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p) },
+];
+
+function isPasswordValid(p: string) {
+  return PASSWORD_RULES.every(r => r.test(p));
+}
+
+function PasswordRules({ password }: { password: string }) {
+  if (!password) return null;
+  return (
+    <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Requirements</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+        {PASSWORD_RULES.map(rule => {
+          const ok = rule.test(password);
+          return (
+            <div key={rule.id} className={`flex items-center gap-1.5 text-xs transition-all duration-300 ${ok ? 'text-green-600' : 'text-red-500'}`}>
+              {ok
+                ? <CheckCircle2 size={12} className="flex-shrink-0" />
+                : <XCircle size={12} className="flex-shrink-0" />}
+              <span className={ok ? 'line-through text-green-500/70' : ''}>{rule.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StrengthBar({ password }: { password: string }) {
+  if (!password) return null;
+  const passed = PASSWORD_RULES.filter(r => r.test(password)).length;
+  const pct = (passed / PASSWORD_RULES.length) * 100;
+  const color = pct <= 20 ? 'bg-red-500' : pct <= 40 ? 'bg-orange-500' : pct <= 60 ? 'bg-yellow-500' : pct <= 80 ? 'bg-blue-500' : 'bg-green-500';
+  const label = pct <= 20 ? 'Very weak' : pct <= 40 ? 'Weak' : pct <= 60 ? 'Fair' : pct <= 80 ? 'Good' : 'Strong';
+  const textColor = pct <= 20 ? 'text-red-500' : pct <= 40 ? 'text-orange-500' : pct <= 60 ? 'text-yellow-500' : pct <= 80 ? 'text-blue-500' : 'text-green-500';
+  return (
+    <div className="mt-1.5">
+      <div className="flex justify-between text-[10px] mb-0.5">
+        <span className="text-gray-400">Strength</span>
+        <span className={`font-semibold ${textColor}`}>{label}</span>
+      </div>
+      <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
 
 interface User {
   id: string;
@@ -15,6 +72,7 @@ interface User {
 
 export default function UsersPage() {
   const { data: session } = useSession();
+  const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,7 +88,7 @@ export default function UsersPage() {
     full_name: '',
     phone: '',
     role: 'EMPLOYEE' as const,
-    password: 'Yordi@321#',
+    password: 'P@55w0rd',
     is_active: true,
   });
 
@@ -78,7 +136,11 @@ export default function UsersPage() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.phone.length !== 10) {
-      alert('Phone number must be exactly 10 digits');
+      toast({ title: '⚠️ Invalid Phone', description: 'Phone number must be exactly 10 digits.', variant: 'destructive' });
+      return;
+    }
+    if (!isPasswordValid(formData.password)) {
+      toast({ title: '⚠️ Weak Password', description: 'Password does not meet all requirements.', variant: 'destructive' });
       return;
     }
     try {
@@ -88,17 +150,14 @@ export default function UsersPage() {
         body: JSON.stringify(formData),
       });
       if (response.ok) {
-        setMessage({ text: 'User created successfully!', type: 'success' });
-        setTimeout(() => {
-          fetchUsers();
-          closeForm();
-        }, 1500);
+        toast({ title: '✅ User Created', description: 'New user has been created successfully.' });
+        setTimeout(() => { fetchUsers(); closeForm(); }, 1200);
       } else {
         const err = await response.json();
-        setMessage({ text: err.error || 'Failed to create user', type: 'error' });
+        toast({ title: '❌ Error', description: err.error || 'Failed to create user.', variant: 'destructive' });
       }
-    } catch (error) {
-      setMessage({ text: 'Failed to connect to server', type: 'error' });
+    } catch {
+      toast({ title: '⚠️ Connection Error', description: 'Could not reach server.', variant: 'destructive' });
     }
   };
 
@@ -106,7 +165,7 @@ export default function UsersPage() {
     e.preventDefault();
     if (!editingUser) return;
     if (formData.phone.length !== 10) {
-      alert('Phone number must be exactly 10 digits');
+      toast({ title: '⚠️ Invalid Phone', description: 'Phone number must be exactly 10 digits.', variant: 'destructive' });
       return;
     }
     try {
@@ -116,23 +175,24 @@ export default function UsersPage() {
         body: JSON.stringify(formData),
       });
       if (response.ok) {
-        setMessage({ text: 'User updated successfully!', type: 'success' });
-        setTimeout(() => {
-          fetchUsers();
-          closeForm();
-        }, 1500);
+        toast({ title: '✅ User Updated', description: 'User details have been updated.' });
+        setTimeout(() => { fetchUsers(); closeForm(); }, 1200);
       } else {
         const err = await response.json();
-        setMessage({ text: err.error || 'Failed to update user', type: 'error' });
+        toast({ title: '❌ Error', description: err.error || 'Failed to update user.', variant: 'destructive' });
       }
-    } catch (error) {
-      setMessage({ text: 'Failed to connect to server', type: 'error' });
+    } catch {
+      toast({ title: '⚠️ Connection Error', description: 'Could not reach server.', variant: 'destructive' });
     }
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser || !newPassword) return;
+    if (!isPasswordValid(newPassword)) {
+      toast({ title: '⚠️ Weak Password', description: 'Password does not meet all requirements.', variant: 'destructive' });
+      return;
+    }
     try {
       const response = await fetch(`/api/users/${selectedUser.id}`, {
         method: 'PATCH',
@@ -140,35 +200,30 @@ export default function UsersPage() {
         body: JSON.stringify({ password: newPassword }),
       });
       if (response.ok) {
-        setMessage({ text: 'Password updated successfully!', type: 'success' });
-        setTimeout(() => {
-          setShowPasswordModal(false);
-          setNewPassword('');
-          setMessage(null);
-        }, 1500);
+        toast({ title: '✅ Password Changed', description: `Password for ${selectedUser.full_name} updated successfully.` });
+        setTimeout(() => { setShowPasswordModal(false); setNewPassword(''); }, 1200);
       } else {
         const err = await response.json();
-        setMessage({ text: err.error || 'Failed to update password', type: 'error' });
+        toast({ title: '❌ Error', description: err.error || 'Failed to update password.', variant: 'destructive' });
       }
-    } catch (error) {
-      setMessage({ text: 'Failed to connect to server', type: 'error' });
+    } catch {
+      toast({ title: '⚠️ Connection Error', description: 'Could not reach server.', variant: 'destructive' });
     }
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this user?')) {
       try {
-        const response = await fetch(`/api/users/${id}`, {
-          method: 'DELETE',
-        });
+        const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
         if (response.ok) {
           fetchUsers();
+          toast({ title: '🗑️ User Deleted', description: 'The user has been removed.' });
         } else {
           const err = await response.json();
-          alert(err.error || 'Failed to delete user');
+          toast({ title: '❌ Error', description: err.error || 'Failed to delete user.', variant: 'destructive' });
         }
-      } catch (error) {
-        alert('Failed to connect to server');
+      } catch {
+        toast({ title: '⚠️ Connection Error', description: 'Could not reach server.', variant: 'destructive' });
       }
     }
   };
@@ -205,12 +260,12 @@ export default function UsersPage() {
     setEditingUser(null);
     setShowPasswordText(false);
     setMessage(null);
-    setFormData({ full_name: '', phone: '', email: '', role: 'EMPLOYEE', password: 'Yordi@321#', is_active: true });
+    setFormData({ full_name: '', phone: '', role: 'EMPLOYEE', password: 'P@55w0rd', is_active: true });
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Copied to clipboard');
+    toast({ title: '📋 Copied', description: 'Copied to clipboard.' });
   };
 
   const getRoleColor = (role: string) => {
@@ -226,6 +281,7 @@ export default function UsersPage() {
 
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
+      <Toaster />
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
@@ -440,26 +496,22 @@ export default function UsersPage() {
 
               {!editingUser && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Password
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input
-                      type={showPasswordText ? "text" : "password"}
+                      type={showPasswordText ? 'text' : 'password'}
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition"
-                      placeholder="Default: Yordi@321#"
+                      placeholder="Default: P@55w0rd"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswordText(!showPasswordText)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                    >
+                    <button type="button" onClick={() => setShowPasswordText(!showPasswordText)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
                       {showPasswordText ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
+                  <StrengthBar password={formData.password} />
+                  <PasswordRules password={formData.password} />
                 </div>
               )}
 
@@ -527,33 +579,30 @@ export default function UsersPage() {
                 <p className="text-sm text-gray-600 mb-4">
                   Changing password for <span className="font-bold text-gray-900">{selectedUser?.full_name}</span>
                 </p>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  New Password
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input
-                    type={showPasswordText ? "text" : "password"}
+                    type={showPasswordText ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016cc4] focus:border-transparent outline-none transition"
                     placeholder="Enter new password"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordText(!showPasswordText)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                  >
+                  <button type="button" onClick={() => setShowPasswordText(!showPasswordText)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
                     {showPasswordText ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                <StrengthBar password={newPassword} />
+                <PasswordRules password={newPassword} />
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 bg-[#016cc4] text-white py-2.5 rounded-lg font-medium hover:bg-[#0158a3] transition flex items-center justify-center gap-2"
+                  disabled={!isPasswordValid(newPassword)}
+                  className="flex-1 bg-[#016cc4] text-white py-2.5 rounded-lg font-medium hover:bg-[#0158a3] transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <Check size={18} />
                   Update Password

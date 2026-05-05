@@ -4,7 +4,7 @@ export default function MonthlyEkubPage() {
   return (
     <EkubTypePage
       title="Monthly EKUB"
-      subtitle="Track monthly contributions and lottery winners across Ethiopian months."
+     
       customers={[]}
       ekubType="monthly"
     />

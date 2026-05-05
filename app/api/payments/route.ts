@@ -20,7 +20,8 @@ export async function POST(request: Request) {
       round_number, 
       payment_period, 
       payment_status, 
-      payment_date 
+      payment_date,
+      ethiopian_year
     } = body;
 
     if (!customer_id || !amount || !round_number || !payment_period) {
@@ -45,7 +46,8 @@ export async function POST(request: Request) {
       payment_period,
       payment_status: payment_status || 'PAID',
       payment_date: payment_date ? new Date(payment_date) : new Date(),
-    }, (session.user as any).id);
+      ethiopian_year: ethiopian_year ?? 2018,
+    } as any, (session.user as any).id);
 
     return NextResponse.json(payment, { status: 201 });
   } catch (error) {

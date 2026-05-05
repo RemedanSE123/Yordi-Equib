@@ -39,6 +39,7 @@ export async function GET(request: Request) {
       SELECT 
         p.id, p.amount, p.round_number as round, p.payment_date as date,
         p.customer_name, c.customer_code as customer_id, p.ekub_type,
+        p.ethiopian_year, p.payment_period as period,
         u.full_name as recorded_by
       FROM payments p
       LEFT JOIN customers c ON p.customer_id = c.id

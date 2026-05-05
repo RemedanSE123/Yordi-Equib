@@ -55,17 +55,17 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   }, [pathname, isMobile, setIsOpen]);
 
   const menuItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
-    { href: '/dashboard/daily', label: 'Daily EKUB', icon: CalendarDays, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
-    { href: '/dashboard/weekly', label: 'Weekly EKUB', icon: CalendarRange, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
-    { href: '/dashboard/monthly', label: 'Monthly EKUB', icon: CalendarClock, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
-    { href: '/dashboard/105-days', label: '105 Days EKUB', icon: CalendarDays, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
-    { href: '/dashboard/share', label: 'Share EKUB', icon: Users, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
-    { href: '/dashboard/customers', label: 'Add Customer', icon: UserPlus, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
-    { href: '/dashboard/payments', label: 'Add Payment', icon: CreditCard, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
+    { href: '/dashboard/daily', label: 'Daily EKUB', icon: CalendarDays, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
+    { href: '/dashboard/weekly', label: 'Weekly EKUB', icon: CalendarRange, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
+    { href: '/dashboard/monthly', label: 'Monthly EKUB', icon: CalendarClock, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
+    { href: '/dashboard/105-days', label: '105 Days EKUB', icon: CalendarDays, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
+    { href: '/dashboard/share', label: 'Share EKUB', icon: Users, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
+    { href: '/dashboard/customers', label: 'Add Customer', icon: UserPlus, roles: ['SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
+    { href: '/dashboard/payments', label: 'Add Payment', icon: CreditCard, roles: ['SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
     { href: '/dashboard/users', label: 'User Management', icon: Users, roles: ['ADMIN'] },
     { href: '/dashboard/audit', label: 'Audit Trail', icon: FileText, roles: ['ADMIN'] },
-    { href: '/dashboard/reports', label: 'Reports', icon: FileBarChart, roles: ['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
+    { href: '/dashboard/reports', label: 'Reports', icon: FileBarChart, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
   ];
 
   const visibleItems = menuItems.filter(item => item.roles.includes(userRole));
