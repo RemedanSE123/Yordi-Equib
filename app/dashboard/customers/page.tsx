@@ -73,6 +73,7 @@ export default function CustomersPage() {
 
   const userRole = (session?.user as any)?.role;
   const isEmployee = userRole === 'EMPLOYEE';
+  const isManager = userRole === 'MANAGER';
 
   if (!['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'].includes(userRole)) {
     return (
@@ -128,6 +129,8 @@ export default function CustomersPage() {
   const handleEditCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCustomer) return;
+    const confirmed = window.confirm('Are you sure you want to update?');
+    if (!confirmed) return;
     try {
       const response = await fetch(`/api/customers/${editingCustomer.id}`, {
         method: 'PUT',
@@ -150,20 +153,20 @@ export default function CustomersPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this customer?')) {
-      try {
-        const response = await fetch(`/api/customers/${id}`, {
-          method: 'DELETE',
-        });
-        if (response.ok) {
-          fetchData();
-        } else {
-          const err = await response.json();
-          alert(err.error || 'Failed to delete customer');
-        }
-      } catch (error) {
-        alert('Failed to connect to server');
+    const confirmed = window.confirm('Are you sure you want to delete?');
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`/api/customers/${id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        fetchData();
+      } else {
+        const err = await response.json();
+        alert(err.error || 'Failed to delete customer');
       }
+    } catch (error) {
+      alert('Failed to connect to server');
     }
   };
 
@@ -193,13 +196,15 @@ export default function CustomersPage() {
           <h1 className="text-3xl font-bold text-gray-900">Customers</h1>
           <p className="text-gray-500 mt-1">Manage EKUB customers and members</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-[#016cc4] text-white px-5 py-2.5 rounded-xl hover:bg-[#0158a3] transition shadow-sm font-medium"
-        >
-          <Plus size={18} />
-          Add Customer
-        </button>
+        {!isManager && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-[#016cc4] text-white px-5 py-2.5 rounded-xl hover:bg-[#0158a3] transition shadow-sm font-medium"
+          >
+            <Plus size={18} />
+            Add Customer
+          </button>
+        )}
       </div>
 
       {/* Filters & Search */}
@@ -253,10 +258,16 @@ export default function CustomersPage() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">EKUB Type</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Paid (ETB)</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Created By</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Pay</th>
+                {!isManager && (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Pay</th>
+                  </>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">History</th>
-                {!isEmployee && <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>}
+                {!isEmployee && !isManager && (
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -284,24 +295,28 @@ export default function CustomersPage() {
                       {customer.createdByName || 'System'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`inline-block px-2 py-1 rounded-lg text-xs font-medium ${customer.isActive
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-gray-100 text-gray-600'
-                      }`}>
-                      {customer.isActive ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <button
-                      onClick={() => router.push(`/dashboard/payments?customerId=${customer.customerId}`)}
-                      className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition flex items-center gap-1.5 font-bold text-xs"
-                      title="Add Payment"
-                    >
-                      <CreditCard size={18} />
-                      PAY
-                    </button>
-                  </td>
+                  {!isManager && (
+                    <>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`inline-block px-2 py-1 rounded-lg text-xs font-medium ${customer.isActive
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-600'
+                          }`}>
+                          {customer.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <button
+                          onClick={() => router.push(`/dashboard/payments?customerId=${customer.customerId}`)}
+                          className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition flex items-center gap-1.5 font-bold text-xs"
+                          title="Add Payment"
+                        >
+                          <CreditCard size={18} />
+                          PAY
+                        </button>
+                      </td>
+                    </>
+                  )}
                   <td className="px-6 py-4 text-sm">
                     <button
                       onClick={() => fetchHistory(customer)}
@@ -312,7 +327,7 @@ export default function CustomersPage() {
                        HISTORY
                     </button>
                   </td>
-                  {!isEmployee && (
+                  {!isEmployee && !isManager && (
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-2">
                         <button

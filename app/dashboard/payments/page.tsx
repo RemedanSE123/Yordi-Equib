@@ -41,6 +41,7 @@ export default function AddPaymentPage() {
   const [searchRound, setSearchRound] = useState('');
   const [searchPeriod, setSearchPeriod] = useState('');
   const [dropdownPositions, setDropdownPositions] = useState({ round: 'bottom', period: 'bottom' });
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState<number | null>(null); // for MONTHLY EKUB UI
 
   const roundButtonRef = useRef<HTMLButtonElement>(null);
   const periodButtonRef = useRef<HTMLButtonElement>(null);
@@ -135,7 +136,7 @@ export default function AddPaymentPage() {
   }, []);
 
   // Calculate dropdown position
-  const calculateDropdownPosition = (buttonRef: React.RefObject<HTMLButtonElement>) => {
+  const calculateDropdownPosition = (buttonRef: React.RefObject<HTMLButtonElement | null>) => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
@@ -173,6 +174,23 @@ export default function AddPaymentPage() {
       setSearchPeriod('');
     }
   };
+
+  const isMonthlyEkub = foundCustomer?.ekubType?.toUpperCase() === 'MONTHLY';
+
+  const ethiopianMonths = [
+    'መስከረም',
+    'ጥቅምት',
+    'ህዳር',
+    'ታህሳስ',
+    'ጥር',
+    'የካቲት',
+    'መጋቢት',
+    'ሚያዚያ',
+    'ግንቦት',
+    'ሰኔ',
+    'ሐምሌ',
+    'ነሐሴ',
+  ];
 
   if (!['ADMIN', 'MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'].includes(userRole)) {
     return (
@@ -227,6 +245,11 @@ export default function AddPaymentPage() {
       toast.warning('Invalid amount', {
         description: 'Please enter a valid amount (ETB).'
       });
+      return;
+    }
+
+    if (!foundCustomer) {
+      toast.error('Please search and select a customer first.');
       return;
     }
 
@@ -286,31 +309,63 @@ export default function AddPaymentPage() {
   };
 
   function generatePeriods(ekubType: string) {
-    let rawPeriods: { value: number, label: string }[] = [];
+    let rawPeriods: { value: number; label: string }[] = [];
     const normalizedType = ekubType.toUpperCase();
 
     if (normalizedType.includes('DAILY') || normalizedType.includes('105')) {
       const length = normalizedType.includes('105') ? 105 : 30;
-      rawPeriods = Array.from({ length }, (_, i) => ({ value: i + 1, label: `Day ${i + 1}` }));
+      rawPeriods = Array.from({ length }, (_, i) => ({
+        value: i + 1,
+        label: `Day ${i + 1}`,
+      }));
     } else if (normalizedType.includes('WEEKLY')) {
-      rawPeriods = Array.from({ length: 60 }, (_, i) => ({ value: i + 1, label: `Week ${i + 1}` }));
+      rawPeriods = Array.from({ length: 60 }, (_, i) => ({
+        value: i + 1,
+        label: `Week ${i + 1}`,
+      }));
     } else if (normalizedType.includes('MONTHLY')) {
+      // Ethiopian months with day selection (1–30) for each month
       const months = [
-        'መስከረም', 'ጥቅምት', 'ህዳር', 'ታህሳስ',
-        'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዚያ',
-        'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ'
+        'መስከረም',
+        'ጥቅምት',
+        'ህዳር',
+        'ታህሳስ',
+        'ጥር',
+        'የካቲት',
+        'መጋቢት',
+        'ሚያዚያ',
+        'ግንቦት',
+        'ሰኔ',
+        'ሐምሌ',
+        'ነሐሴ',
       ];
-      rawPeriods = months.map((month, i) => ({ value: i + 1, label: month }));
+
+      const entries: { value: number; label: string }[] = [];
+      let counter = 1;
+      months.forEach((month) => {
+        for (let day = 1; day <= 30; day++) {
+          entries.push({
+            value: counter++,
+            label: `${month} ${day}`,
+          });
+        }
+      });
+      rawPeriods = entries;
     } else if (normalizedType.includes('SHARE')) {
-      rawPeriods = Array.from({ length: 60 }, (_, i) => ({ value: i + 1, label: `Day ${i + 1}` }));
+      rawPeriods = Array.from({ length: 60 }, (_, i) => ({
+        value: i + 1,
+        label: `Day ${i + 1}`,
+      }));
     }
 
-    const periods: Period[] = rawPeriods.map(p => {
-      const isPaid = alreadyPaidPeriods.includes(p.label) || alreadyPaidPeriods.includes(p.value.toString());
+    const periods: Period[] = rawPeriods.map((p) => {
+      const isPaid =
+        alreadyPaidPeriods.includes(p.label) ||
+        alreadyPaidPeriods.includes(p.value.toString());
       return {
         ...p,
         selected: isPaid,
-        isPaid: isPaid
+        isPaid: isPaid,
       };
     });
 
@@ -327,9 +382,23 @@ export default function AddPaymentPage() {
     round.label.toLowerCase().includes(searchRound.toLowerCase())
   );
 
-  const filteredPeriods = selectedPeriods.filter(period =>
-    period.label.toLowerCase().includes(searchPeriod.toLowerCase())
-  );
+  const filteredPeriods = useMemo(() => {
+    if (isMonthlyEkub) {
+      if (selectedMonthIndex === null) {
+        return [];
+      }
+      const month = ethiopianMonths[selectedMonthIndex] || ethiopianMonths[0];
+      return selectedPeriods.filter(
+        (period) =>
+          period.label.startsWith(month) &&
+          period.label.toLowerCase().includes(searchPeriod.toLowerCase())
+      );
+    }
+
+    return selectedPeriods.filter((period) =>
+      period.label.toLowerCase().includes(searchPeriod.toLowerCase())
+    );
+  }, [isMonthlyEkub, ethiopianMonths, selectedMonthIndex, selectedPeriods, searchPeriod]);
 
   const getRoundLabel = () => {
     if (!selectedRound) return 'Select round';
@@ -346,55 +415,119 @@ export default function AddPaymentPage() {
   const togglePeriod = (index: number) => {
     const period = selectedPeriods[index];
     if (period.isPaid) return; // Cannot uncheck paid ones
+  
+    const updatedPeriods = [...selectedPeriods];
 
-    if (!period.selected) {
-      // Find the first unpaid/unselected period before this one
-      const firstMissing = selectedPeriods
-        .slice(0, index)
-        .find(p => !p.isPaid && !p.selected);
+    // Helper to enforce sequence rules on a slice
+    const enforceSequentialToggle = (
+      list: Period[],
+      globalIndexes: number[],
+      localIndex: number
+    ) => {
+      const current = list[localIndex];
 
-      if (firstMissing) {
-        toast.warning('⚠️ Wrong Order — Select in Sequence', {
-          description: `You must select "${firstMissing.label}" before selecting "${period.label}". Payments must be recorded in order — do not skip any period.`,
-          duration: 5000,
-        });
-        return;
+      if (!current.selected) {
+        // Selecting: ensure no earlier gaps in this slice
+        const firstMissing = list
+          .slice(0, localIndex)
+          .find((p) => !p.isPaid && !p.selected);
+
+        if (firstMissing) {
+          toast.warning('⚠️ Wrong Order — Select in Sequence', {
+            description: `You must select "${firstMissing.label}" before selecting "${current.label}". Payments must be recorded in order — do not skip any period within the same month.`,
+            duration: 5000,
+          });
+          return false;
+        }
+      } else {
+        // Deselecting: ensure nothing later remains selected
+        const lastSelected = [...list]
+          .slice(localIndex + 1)
+          .filter((p) => p.selected && !p.isPaid)
+          .at(-1);
+
+        if (lastSelected) {
+          toast.warning('⚠️ Remove in Reverse Order', {
+            description: `You cannot remove "${current.label}" while "${lastSelected.label}" is still selected. Please deselect "${lastSelected.label}" first, then come back to remove this one.`,
+            duration: 5000,
+          });
+          return false;
+        }
       }
+
+      // Passed validation – flip selection in the backing array using global index
+      updatedPeriods[globalIndexes[localIndex]].selected = !current.selected;
+      return true;
+    };
+
+    if (isMonthlyEkub) {
+      // For MONTHLY: sequence only within the same month, any month can start independently
+      const monthPrefix = period.label.split(' ')[0]; // "መስከረም 3" -> "መስከረም"
+
+      const monthIndexes: number[] = [];
+      const monthSlice: Period[] = [];
+
+      selectedPeriods.forEach((p, idx) => {
+        if (p.label.startsWith(monthPrefix)) {
+          monthIndexes.push(idx);
+          monthSlice.push(updatedPeriods[idx]);
+        }
+      });
+
+      const localIndex = monthIndexes.indexOf(index);
+      if (localIndex === -1) return;
+
+      const ok = enforceSequentialToggle(monthSlice, monthIndexes, localIndex);
+      if (!ok) return;
     } else {
-      // Find the last selected (unpaid) period after this one
-      const lastSelected = [...selectedPeriods]
-        .slice(index + 1)
-        .filter(p => p.selected && !p.isPaid)
-        .at(-1);
-
-      if (lastSelected) {
-        toast.warning('⚠️ Remove in Reverse Order', {
-          description: `You cannot remove "${period.label}" while "${lastSelected.label}" is still selected. Please deselect "${lastSelected.label}" first, then come back to remove this one.`,
-          duration: 5000,
-        });
-        return;
-      }
+      // Other types: keep existing global sequential behaviour
+      const ok = enforceSequentialToggle(
+        updatedPeriods,
+        updatedPeriods.map((_, i) => i),
+        index
+      );
+      if (!ok) return;
     }
 
-    const updatedPeriods = [...selectedPeriods];
-    updatedPeriods[index].selected = !updatedPeriods[index].selected;
     setSelectedPeriods(updatedPeriods);
   };
 
   const selectAllPeriods = () => {
-    // Only select unpaid periods, but in sequence? 
-    // Usually "Select All" should just select everything that isn't paid.
-    const updatedPeriods = selectedPeriods.map(p => ({
+    // For MONTHLY, apply to currently visible (month-filtered) periods only
+    if (isMonthlyEkub && selectedMonthIndex !== null) {
+      const month = ethiopianMonths[selectedMonthIndex];
+      const updated = selectedPeriods.map((p) =>
+        p.label.startsWith(month)
+          ? { ...p, selected: true }
+          : p
+      );
+      setSelectedPeriods(updated);
+      return;
+    }
+
+    const updatedPeriods = selectedPeriods.map((p) => ({
       ...p,
-      selected: true
+      selected: true,
     }));
     setSelectedPeriods(updatedPeriods);
   };
 
   const deselectAllPeriods = () => {
-    const updatedPeriods = selectedPeriods.map(p => ({
+    // For MONTHLY, apply to currently visible (month-filtered) periods only
+    if (isMonthlyEkub && selectedMonthIndex !== null) {
+      const month = ethiopianMonths[selectedMonthIndex];
+      const updated = selectedPeriods.map((p) =>
+        p.label.startsWith(month)
+          ? { ...p, selected: p.isPaid ? true : false }
+          : p
+      );
+      setSelectedPeriods(updated);
+      return;
+    }
+
+    const updatedPeriods = selectedPeriods.map((p) => ({
       ...p,
-      selected: p.isPaid ? true : false
+      selected: p.isPaid ? true : false,
     }));
     setSelectedPeriods(updatedPeriods);
   };
@@ -625,42 +758,87 @@ export default function AddPaymentPage() {
                           </div>
                         </div>
 
-                        <div className="p-2 border-b border-gray-100 flex gap-2 sticky top-0 bg-white">
-                          <button
-                            type="button"
-                            onClick={selectAllPeriods}
-                            className="text-xs text-[#016cc4] hover:underline"
-                          >
-                            Select All
-                          </button>
-                          <button
-                            type="button"
-                            onClick={deselectAllPeriods}
-                            className="text-xs text-gray-500 hover:underline"
-                          >
-                            Deselect All
-                          </button>
-                        </div>
+                        {isMonthlyEkub && (
+                          <div className="p-2 border-b border-gray-100 bg-white sticky top-0 z-10">
+                            <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+                              Select Month
+                            </label>
+                            <select
+                              value={selectedMonthIndex ?? ''}
+                              onChange={(e) => setSelectedMonthIndex(Number(e.target.value))}
+                              className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium focus:ring-1 focus:ring-[#016cc4] focus:border-transparent outline-none bg-white"
+                            >
+                              <option value="" disabled>
+                                Choose month...
+                              </option>
+                              {ethiopianMonths.map((m, idx) => (
+                                <option key={m} value={idx}>
+                                  {m}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {(!isMonthlyEkub || selectedMonthIndex !== null) && (
+                          <div className="p-2 border-b border-gray-100 flex gap-2 sticky top-[40px] bg-white z-10">
+                            <button
+                              type="button"
+                              onClick={selectAllPeriods}
+                              className="text-xs text-[#016cc4] hover:underline"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={deselectAllPeriods}
+                              className="text-xs text-gray-500 hover:underline"
+                            >
+                              Deselect All
+                            </button>
+                          </div>
+                        )}
 
                         <div className="overflow-y-auto" style={{ maxHeight: '250px' }}>
                           {filteredPeriods.length > 0 ? (
-                            filteredPeriods.map((period, index) => (
-                              <label
-                                className={`flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition ${period.isPaid ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer'}`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={period.selected}
-                                  onChange={() => togglePeriod(index)}
-                                  disabled={period.isPaid}
-                                  className={`w-4 h-4 rounded border-gray-300 focus:ring-[#016cc4] ${period.isPaid ? 'text-gray-400' : 'text-[#016cc4]'}`}
-                                />
-                                <span className={`text-sm ${period.isPaid ? 'text-gray-400 font-medium' : 'text-gray-700'}`}>
-                                  {period.label}
-                                  {period.isPaid && <span className="ml-2 text-[10px] uppercase tracking-wider font-bold text-emerald-600">Paid</span>}
-                                </span>
-                              </label>
-                            ))
+                            filteredPeriods.map((period) => {
+                              const globalIndex = selectedPeriods.findIndex(
+                                (p) => p.label === period.label && p.value === period.value
+                              );
+
+                              if (globalIndex === -1) return null;
+
+                              return (
+                                <label
+                                  key={period.label}
+                                  className={`flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition ${
+                                    period.isPaid ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={period.selected}
+                                    onChange={() => togglePeriod(globalIndex)}
+                                    disabled={period.isPaid}
+                                    className={`w-4 h-4 rounded border-gray-300 focus:ring-[#016cc4] ${
+                                      period.isPaid ? 'text-gray-400' : 'text-[#016cc4]'
+                                    }`}
+                                  />
+                                  <span
+                                    className={`text-sm ${
+                                      period.isPaid ? 'text-gray-400 font-medium' : 'text-gray-700'
+                                    }`}
+                                  >
+                                    {period.label}
+                                    {period.isPaid && (
+                                      <span className="ml-2 text-[10px] uppercase tracking-wider font-bold text-emerald-600">
+                                        Paid
+                                      </span>
+                                    )}
+                                  </span>
+                                </label>
+                              );
+                            })
                           ) : (
                             <div className="px-4 py-3 text-sm text-gray-500 text-center">
                               No periods found

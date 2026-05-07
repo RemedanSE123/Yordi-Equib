@@ -4,9 +4,8 @@ export default function MonthlyEkubPage() {
   return (
     <EkubTypePage
       title="Monthly EKUB"
-     
-      customers={[]}
       ekubType="monthly"
+      subtitle="Track monthly EKUB contributions by member, round, month and day"
     />
   );
 }

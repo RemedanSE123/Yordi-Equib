@@ -61,9 +61,9 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { href: '/dashboard/monthly', label: 'Monthly EKUB', icon: CalendarClock, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
     { href: '/dashboard/105-days', label: '105 Days EKUB', icon: CalendarDays, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
     { href: '/dashboard/share', label: 'Share EKUB', icon: Users, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE', 'CUSTOMER'] },
-    { href: '/dashboard/customers', label: 'Add Customer', icon: UserPlus, roles: ['SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
+    { href: '/dashboard/customers', label: 'Add Customer', icon: UserPlus, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
     { href: '/dashboard/payments', label: 'Add Payment', icon: CreditCard, roles: ['SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
-    { href: '/dashboard/users', label: 'User Management', icon: Users, roles: ['ADMIN'] },
+    { href: '/dashboard/users', label: 'User Management', icon: Users, roles: ['ADMIN', 'MANAGER'] },
     { href: '/dashboard/audit', label: 'Audit Trail', icon: FileText, roles: ['ADMIN'] },
     { href: '/dashboard/reports', label: 'Reports', icon: FileBarChart, roles: ['MANAGER', 'SECRETARY', 'COLLECTOR', 'EMPLOYEE'] },
   ];

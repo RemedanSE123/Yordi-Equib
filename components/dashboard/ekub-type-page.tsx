@@ -51,6 +51,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
   const [currentPeriod, setCurrentPeriod] = useState(1);
   const [filterRound, setFilterRound] = useState<string | 'all'>('all');
   const [filterPeriod, setFilterPeriod] = useState<string | 'all'>('all');
+  const [filterMonth, setFilterMonth] = useState<string | 'all'>('all');
   const [filterRecordedBy, setFilterRecordedBy] = useState<string | 'all'>('all');
   const [filterDate, setFilterDate] = useState<string>('');
   const [filterYear, setFilterYear] = useState<string>('all');
@@ -91,12 +92,27 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
     'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ'
   ];
 
+  const isMonthly = ekubType === 'monthly';
+  const MONTHLY_DAYS = 30;
+
+  const parseMonthlyMonthAndDay = (paymentPeriod?: string | null) => {
+    const value = (paymentPeriod || '').trim();
+    if (!value) return { monthName: '', day: null as number | null };
+    const parts = value.split(' ');
+    const dayNum = Number(parts.at(-1));
+    const monthName = parts.slice(0, -1).join(' ');
+    return {
+      monthName,
+      day: Number.isFinite(dayNum) ? dayNum : null,
+    };
+  };
+
   // Get total periods
   const getTotalPeriods = () => {
     switch (ekubType) {
       case 'daily': return 30;
       case 'weekly': return 60;
-      case 'monthly': return 12; // 12 Ethiopian months
+      case 'monthly': return 12; // 12 Ethiopian months (days handled inside payment_period)
       case '105-days': return 105;
       case 'share': return 60;
       default: return 30;
@@ -120,13 +136,19 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
   const getPaymentForPeriod = (customerId: string, periodIndex: number) => {
     const periodLabel = getPeriodLabel(periodIndex);
     const roundLabel = filterRound === 'all' ? 'Round 1' : `Round ${filterRound}`;
-    
-    return payments.some(p => 
-      p.customer_id === customerId && 
-      p.round_number === roundLabel && 
-      p.payment_period === periodLabel &&
-      p.payment_status === 'PAID'
-    );
+
+    return payments.some((p) => {
+      if (p.customer_id !== customerId) return false;
+      if (p.round_number !== roundLabel) return false;
+      if (p.payment_status !== 'PAID') return false;
+
+      // For monthly EKUB, payments are stored as "MonthName Day"
+      if (ekubType === 'monthly') {
+        return p.payment_period?.startsWith(periodLabel);
+      }
+
+      return p.payment_period === periodLabel;
+    });
   };
 
   const filteredPayments = useMemo(() => {
@@ -138,7 +160,19 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
         p.phone.includes(searchTerm);
 
       const matchesRound = filterRound === 'all' || p.round_number === `Round ${filterRound}`;
-      const matchesPeriod = filterPeriod === 'all' || p.payment_period === getPeriodLabel(Number(filterPeriod));
+
+      const matchesPeriod = (() => {
+        if (!isMonthly) {
+          return filterPeriod === 'all'
+            ? true
+            : p.payment_period === getPeriodLabel(Number(filterPeriod));
+        }
+
+        const parsed = parseMonthlyMonthAndDay(p.payment_period);
+        const matchesMonth = filterMonth === 'all' ? true : parsed.monthName === filterMonth;
+        const matchesDay = filterPeriod === 'all' ? true : parsed.day === Number(filterPeriod);
+        return matchesMonth && matchesDay;
+      })();
       const matchesRecordedBy = filterRecordedBy === 'all' || p.recorded_by_name === filterRecordedBy;
       const matchesYear = filterYear === 'all' || String(p.ethiopian_year) === filterYear;
       
@@ -150,7 +184,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
 
       return matchesSearch && matchesRound && matchesPeriod && matchesRecordedBy && matchesDate && matchesYear;
     });
-  }, [payments, searchTerm, filterRound, filterPeriod, filterRecordedBy, filterDate, filterYear]);
+  }, [payments, searchTerm, filterRound, filterPeriod, filterMonth, filterRecordedBy, filterDate, filterYear, isMonthly]);
 
   const uniqueRecorders = useMemo(() => {
     const recorders = new Set<string>();
@@ -230,13 +264,24 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
     setSearchTerm('');
     setFilterRound('all');
     setFilterPeriod('all');
+    setFilterMonth('all');
     setFilterRecordedBy('all');
     setFilterDate('');
     setFilterYear('all');
     toast.info('Filters cleared');
   };
 
-  const isFilterActive = searchTerm !== '' || filterRound !== 'all' || filterPeriod !== 'all' || filterRecordedBy !== 'all' || filterDate !== '' || filterYear !== 'all';
+  const isFilterActive =
+    searchTerm !== '' ||
+    filterRound !== 'all' ||
+    filterPeriod !== 'all' ||
+    (isMonthly && filterMonth !== 'all') ||
+    filterRecordedBy !== 'all' ||
+    filterDate !== '' ||
+    filterYear !== 'all';
+
+  const editingMonthlyMonthName =
+    isMonthly && editingPayment ? parseMonthlyMonthAndDay(editingPayment.payment_period).monthName : '';
 
   const handlePrevPeriod = () => {
     if (currentPeriod > 1) setCurrentPeriod(currentPeriod - 1);
@@ -365,18 +410,72 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
             ))}
           </select>
 
+          {isMonthly && viewMode === 'matrix' && (
+            <select
+              value={currentPeriod.toString()}
+              onChange={(e) => setCurrentPeriod(Number(e.target.value))}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium focus:border-[#016cc4] outline-none bg-white"
+            >
+              {ethiopianMonths.map((m, idx) => (
+                <option key={m} value={(idx + 1).toString()}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
+
           {viewMode === 'table' && (
             <>
-              <select
-                value={filterPeriod}
-                onChange={(e) => setFilterPeriod(e.target.value)}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium focus:border-[#016cc4] outline-none bg-white"
-              >
-                <option value="all">All Periods</option>
-                {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(p => (
-                  <option key={p} value={p.toString()}>{getPeriodLabel(p)}</option>
-                ))}
-              </select>
+              {isMonthly ? (
+                <>
+                  <select
+                    value={filterMonth}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setFilterMonth(next);
+                      if (next === 'all') setFilterPeriod('all'); // Reset day when no month is chosen
+                    }}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium focus:border-[#016cc4] outline-none bg-white"
+                  >
+                    <option value="all">All Months</option>
+                    {ethiopianMonths.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={filterPeriod}
+                    onChange={(e) => setFilterPeriod(e.target.value)}
+                    disabled={filterMonth === 'all'}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium focus:border-[#016cc4] outline-none bg-white"
+                  >
+                    {filterMonth === 'all' ? (
+                      <option value="all">Select month first</option>
+                    ) : (
+                      <>
+                        <option value="all">All Days</option>
+                        {Array.from({ length: MONTHLY_DAYS }, (_, i) => i + 1).map((d) => (
+                          <option key={d} value={d.toString()}>
+                            {filterMonth} {d}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                </>
+              ) : (
+                <select
+                  value={filterPeriod}
+                  onChange={(e) => setFilterPeriod(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium focus:border-[#016cc4] outline-none bg-white"
+                >
+                  <option value="all">All Periods</option>
+                  {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(p => (
+                    <option key={p} value={p.toString()}>{getPeriodLabel(p)}</option>
+                  ))}
+                </select>
+              )}
 
               <select
                 value={filterRecordedBy}
@@ -504,11 +603,18 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 sticky left-0 bg-gray-50 z-10 border-r w-12">No.</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 sticky left-12 bg-gray-50 z-10 border-r min-w-[150px]">Member</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 border-r min-w-[80px]">Round</th>
-                    {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(period => (
-                      <th key={period} className="px-2 py-3 text-center text-xs font-semibold text-gray-600 min-w-[70px]">
-                        {getPeriodLabel(period)}
-                      </th>
-                    ))}
+                    {isMonthly
+                      ? Array.from({ length: MONTHLY_DAYS }, (_, i) => i + 1).map((day) => (
+                        <th key={day} className="px-2 py-3 text-center text-xs font-semibold text-gray-600 min-w-[90px]">
+                          {`${getPeriodLabel(currentPeriod)} ${day}`}
+                        </th>
+                      ))
+                      : Array.from({ length: totalPeriods }, (_, i) => i + 1).map(period => (
+                        <th key={period} className="px-2 py-3 text-center text-xs font-semibold text-gray-600 min-w-[70px]">
+                          {getPeriodLabel(period)}
+                        </th>
+                      ))
+                    }
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -527,16 +633,39 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
                       <td className="px-4 py-3 text-sm text-center font-bold text-[#016cc4] border-r">
                         {filterRound === 'all' ? 'R-1' : `R-${filterRound}`}
                       </td>
-                      {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(period => {
-                        const isPaid = getPaymentForPeriod(customer.id, period);
-                        return (
-                          <td key={period} className="px-2 py-3 text-center">
-                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm font-bold shadow-sm transition ${isPaid ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-red-50 text-red-200 border border-red-100/50'}`}>
-                              {isPaid ? '✓' : '✗'}
-                            </span>
-                          </td>
-                        );
-                      })}
+                      {isMonthly
+                        ? Array.from({ length: MONTHLY_DAYS }, (_, i) => i + 1).map((day) => {
+                          const monthName = getPeriodLabel(currentPeriod);
+                          const periodLabel = `${monthName} ${day}`;
+                          const roundLabel = filterRound === 'all' ? 'Round 1' : `Round ${filterRound}`;
+
+                          const isPaid = payments.some((p) => {
+                            if (p.customer_id !== customer.id) return false;
+                            if (p.round_number !== roundLabel) return false;
+                            if (p.payment_status !== 'PAID') return false;
+                            if (String(p.ethiopian_year ?? '') !== filterYear && filterYear !== 'all') return false;
+                            return p.payment_period === periodLabel;
+                          });
+
+                          return (
+                            <td key={day} className="px-2 py-3 text-center">
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm font-bold shadow-sm transition ${isPaid ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-red-50 text-red-200 border border-red-100/50'}`}>
+                                {isPaid ? '✓' : '✗'}
+                              </span>
+                            </td>
+                          );
+                        })
+                        : Array.from({ length: totalPeriods }, (_, i) => i + 1).map(period => {
+                          const isPaid = getPaymentForPeriod(customer.id, period);
+                          return (
+                            <td key={period} className="px-2 py-3 text-center">
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm font-bold shadow-sm transition ${isPaid ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-red-50 text-red-200 border border-red-100/50'}`}>
+                                {isPaid ? '✓' : '✗'}
+                              </span>
+                            </td>
+                          );
+                        })
+                      }
                     </tr>
                   ))}
                 </tbody>
@@ -602,16 +731,39 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-bold text-slate-700 ml-1">Period</label>
-                  <select
-                    value={editPeriod}
-                    onChange={(e) => setEditPeriod(e.target.value)}
-                    required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                  >
-                    {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(p => (
-                      <option key={p} value={getPeriodLabel(p)}>{getPeriodLabel(p)}</option>
-                    ))}
-                  </select>
+                  {isMonthly ? (
+                    <div className="space-y-1.5">
+                      <div className="text-[12px] font-semibold text-slate-600">
+                        {editingMonthlyMonthName || '—'}
+                      </div>
+                      <select
+                        value={editPeriod}
+                        onChange={(e) => setEditPeriod(e.target.value)}
+                        required
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      >
+                        {Array.from({ length: MONTHLY_DAYS }, (_, i) => i + 1).map((day) => {
+                          const monthName = editingMonthlyMonthName || '';
+                          return (
+                            <option key={day} value={`${monthName} ${day}`}>
+                              Day {day}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  ) : (
+                    <select
+                      value={editPeriod}
+                      onChange={(e) => setEditPeriod(e.target.value)}
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    >
+                      {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(p => (
+                        <option key={p} value={getPeriodLabel(p)}>{getPeriodLabel(p)}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 

@@ -111,8 +111,9 @@ export default function UsersPage() {
   }, []);
 
   const userRole = (session?.user as any)?.role;
+  const isManager = userRole === 'MANAGER';
 
-  if (userRole !== 'ADMIN') {
+  if (!['ADMIN', 'MANAGER'].includes(userRole)) {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <div className="text-center max-w-md p-8 rounded-3xl border border-red-100 bg-red-50/50 backdrop-blur">
@@ -120,7 +121,7 @@ export default function UsersPage() {
             <ShieldAlert size={32} />
           </div>
           <h1 className="text-2xl font-black text-gray-950 mb-2">Access Denied</h1>
-          <p className="text-gray-600">Only administrators can manage system users. Please contact your manager if you believe this is an error.</p>
+          <p className="text-gray-600">Only administrators and managers can manage system users. Please contact your administrator if you believe this is an error.</p>
         </div>
       </div>
     );
@@ -168,6 +169,8 @@ export default function UsersPage() {
       toast({ title: '⚠️ Invalid Phone', description: 'Phone number must be exactly 10 digits.', variant: 'destructive' });
       return;
     }
+    const confirmed = window.confirm('Are you sure you want to update?');
+    if (!confirmed) return;
     try {
       const response = await fetch(`/api/users/${editingUser.id}`, {
         method: 'PUT',
@@ -212,19 +215,19 @@ export default function UsersPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      try {
-        const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
-        if (response.ok) {
-          fetchUsers();
-          toast({ title: '🗑️ User Deleted', description: 'The user has been removed.' });
-        } else {
-          const err = await response.json();
-          toast({ title: '❌ Error', description: err.error || 'Failed to delete user.', variant: 'destructive' });
-        }
-      } catch {
-        toast({ title: '⚠️ Connection Error', description: 'Could not reach server.', variant: 'destructive' });
+    const confirmed = window.confirm('Are you sure you want to delete?');
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        fetchUsers();
+        toast({ title: '🗑️ User Deleted', description: 'The user has been removed.' });
+      } else {
+        const err = await response.json();
+        toast({ title: '❌ Error', description: err.error || 'Failed to delete user.', variant: 'destructive' });
       }
+    } catch {
+      toast({ title: '⚠️ Connection Error', description: 'Could not reach server.', variant: 'destructive' });
     }
   };
 
@@ -288,13 +291,15 @@ export default function UsersPage() {
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-500 mt-1">Manage system users and access levels</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-[#016cc4] text-white px-5 py-2.5 rounded-xl hover:bg-[#0158a3] transition shadow-sm font-medium"
-        >
-          <Plus size={18} />
-          New User
-        </button>
+        {!isManager && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-[#016cc4] text-white px-5 py-2.5 rounded-xl hover:bg-[#0158a3] transition shadow-sm font-medium"
+          >
+            <Plus size={18} />
+            New User
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -339,8 +344,12 @@ export default function UsersPage() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Phone</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Created By</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                {!isManager && (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -372,45 +381,49 @@ export default function UsersPage() {
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {user.created_by_name || 'System'}
                   </td>
-                  <td className="px-6 py-4 text-sm">
-                    <button
-                      onClick={() => toggleUserStatus(user)}
-                      className={`inline-block px-2 py-1 rounded-lg text-xs font-medium transition ${user.is_active
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      title="Click to toggle status"
-                    >
-                      {user.is_active ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => openEditForm(user)}
-                        className="p-1.5 text-gray-600 hover:text-[#016cc4] hover:bg-blue-50 rounded-lg transition"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setShowPasswordModal(true);
-                        }}
-                        className="p-1.5 text-gray-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                        title="Change Password"
-                      >
-                        <ShieldCheck size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(user.id)}
-                        className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Delete User"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+                  {!isManager && (
+                    <>
+                      <td className="px-6 py-4 text-sm">
+                        <button
+                          onClick={() => toggleUserStatus(user)}
+                          className={`inline-block px-2 py-1 rounded-lg text-xs font-medium transition ${user.is_active
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          title="Click to toggle status"
+                        >
+                          {user.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => openEditForm(user)}
+                            className="p-1.5 text-gray-600 hover:text-[#016cc4] hover:bg-blue-50 rounded-lg transition"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setShowPasswordModal(true);
+                            }}
+                            className="p-1.5 text-gray-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                            title="Change Password"
+                          >
+                            <ShieldCheck size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user.id)}
+                            className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            title="Delete User"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
