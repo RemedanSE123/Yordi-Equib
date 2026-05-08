@@ -41,7 +41,7 @@ interface EkubTypePageProps {
 export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePageProps) {
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role;
-  const isEmployee = userRole === 'EMPLOYEE';
+  const canManagePayments = userRole === 'SECRETARY';
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
@@ -63,6 +63,8 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
   const [editRound, setEditRound] = useState('');
   const [editPeriod, setEditPeriod] = useState('');
   const [editYear, setEditYear] = useState<number>(2018);
+  const [editMonth, setEditMonth] = useState(''); // Amharic month name for monthly EKUB
+  const [editDay, setEditDay] = useState<number>(1);   // day-of-month for monthly EKUB
 
   const fetchData = async () => {
     try {
@@ -208,6 +210,11 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
   };
 
   const handleDeletePayment = async (id: string) => {
+    if (!canManagePayments) {
+      toast.error('Only secretary can delete payments');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this payment record?')) return;
     
     try {
@@ -224,17 +231,32 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
   };
 
   const handleEditClick = (payment: Payment) => {
+    if (!canManagePayments) {
+      toast.error('Only secretary can edit payments');
+      return;
+    }
+
     setEditingPayment(payment);
     setEditAmount(payment.amount.toString());
     setEditRound(payment.round_number.replace('Round ', ''));
     setEditPeriod(payment.payment_period);
     setEditYear(payment.ethiopian_year ?? 2018);
+    // For monthly EKUB, split payment_period into month + day
+    if (ekubType === 'monthly') {
+      const parsed = parseMonthlyMonthAndDay(payment.payment_period);
+      setEditMonth(parsed.monthName || ethiopianMonths[0]);
+      setEditDay(parsed.day ?? 1);
+    }
     setIsEditModalOpen(true);
   };
 
   const handleUpdatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPayment) return;
+    if (!canManagePayments) {
+      toast.error('Only secretary can update payments');
+      return;
+    }
 
     try {
       const res = await fetch(`/api/payments/${editingPayment.id}`, {
@@ -279,6 +301,17 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
     filterRecordedBy !== 'all' ||
     filterDate !== '' ||
     filterYear !== 'all';
+
+  // Keep editPeriod in sync whenever editMonth or editDay changes (monthly EKUB)
+  const handleEditMonthChange = (month: string) => {
+    setEditMonth(month);
+    setEditPeriod(`${month} ${editDay}`);
+  };
+
+  const handleEditDayChange = (day: number) => {
+    setEditDay(day);
+    setEditPeriod(`${editMonth} ${day}`);
+  };
 
   const editingMonthlyMonthName =
     isMonthly && editingPayment ? parseMonthlyMonthAndDay(editingPayment.payment_period).monthName : '';
@@ -540,7 +573,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Payment</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Amount</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">By</th>
-                    {!isEmployee && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>}
+                    {canManagePayments && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -567,7 +600,7 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
                           {payment.recorded_by_name || 'Admin'}
                         </div>
                       </td>
-                      {!isEmployee && (
+                      {canManagePayments && (
                         <td className="px-4 py-3 text-sm text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button 
@@ -732,24 +765,30 @@ export default function EkubTypePage({ title, subtitle, ekubType }: EkubTypePage
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-bold text-slate-700 ml-1">Period</label>
                   {isMonthly ? (
-                    <div className="space-y-1.5">
-                      <div className="text-[12px] font-semibold text-slate-600">
-                        {editingMonthlyMonthName || '—'}
-                      </div>
+                    <div className="space-y-2">
+                      {/* Month selector — Amharic names */}
                       <select
-                        value={editPeriod}
-                        onChange={(e) => setEditPeriod(e.target.value)}
+                        value={editMonth}
+                        onChange={(e) => handleEditMonthChange(e.target.value)}
                         required
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                       >
-                        {Array.from({ length: MONTHLY_DAYS }, (_, i) => i + 1).map((day) => {
-                          const monthName = editingMonthlyMonthName || '';
-                          return (
-                            <option key={day} value={`${monthName} ${day}`}>
-                              Day {day}
-                            </option>
-                          );
-                        })}
+                        {ethiopianMonths.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                      {/* Day selector — shows Amharic month + day number */}
+                      <select
+                        value={editDay}
+                        onChange={(e) => handleEditDayChange(Number(e.target.value))}
+                        required
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      >
+                        {Array.from({ length: MONTHLY_DAYS }, (_, i) => i + 1).map((day) => (
+                          <option key={day} value={day}>
+                            {editMonth} {day}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   ) : (

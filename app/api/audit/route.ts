@@ -17,7 +17,7 @@ export async function GET() {
       FROM audit_logs al
       LEFT JOIN users u ON al.user_id = u.id
       ORDER BY al.created_at DESC
-      LIMIT 100
+      LIMIT 500
     `;
     const res = await db.query<any>(query);
 
@@ -31,10 +31,23 @@ export async function GET() {
         details = `${row.action === 'INSERT' ? 'Registered' : row.action === 'DELETE' ? 'Archived' : 'Modified'} member: ${data.full_name || 'unknown'}`;
       } else if (row.table_name === 'users') {
         details = `${row.action === 'INSERT' ? 'Created' : 'Updated'} staff account: ${data.full_name || 'unknown'}`;
+      } else if (row.table_name === 'auth_sessions') {
+        if (row.action === 'LOGIN_SUCCESS') {
+          details = 'Successful login';
+        } else if (row.action === 'SESSION_START') {
+          details = 'Session started';
+        } else if (row.action === 'MANUAL_LOGOUT') {
+          details = 'Manual logout';
+        } else if (row.action === 'SESSION_END') {
+          details = 'Session ended';
+        } else {
+          details = row.action;
+        }
       }
 
       return {
         id: row.id,
+        createdAt: row.created_at,
         timestamp: new Date(row.created_at).toLocaleString('en-US', {
           year: 'numeric',
           month: 'short',

@@ -13,9 +13,10 @@ import { toast } from 'sonner';
 
 interface AuditLog {
   id: string;
+  createdAt?: string;
   timestamp: string;
   user: string;
-  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'LOGIN_SUCCESS' | 'SESSION_START' | 'MANUAL_LOGOUT' | 'SESSION_END';
   entityType: string;
   entityId: string;
   details: string;
@@ -23,13 +24,22 @@ interface AuditLog {
   new_data?: any;
 }
 
+interface UserSessionWindow {
+  id: string;
+  startAt: string;
+  endAt?: string;
+  startLabel: string;
+}
+
 export default function AuditPage() {
   const { data: session } = useSession();
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterAction, setFilterAction] = useState<'all' | 'INSERT' | 'UPDATE' | 'DELETE'>('all');
-  const [filterTable, setFilterTable] = useState<'all' | 'payments' | 'customers' | 'users'>('all');
+  const [filterAction, setFilterAction] = useState<'all' | 'INSERT' | 'UPDATE' | 'DELETE' | 'LOGIN_SUCCESS' | 'SESSION_START' | 'MANUAL_LOGOUT' | 'SESSION_END'>('all');
+  const [filterTable, setFilterTable] = useState<'all' | 'payments' | 'customers' | 'users' | 'auth_sessions'>('all');
+  const [selectedUser, setSelectedUser] = useState<'all' | string>('all');
+  const [selectedSessionWindow, setSelectedSessionWindow] = useState<'all' | string>('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
   const fetchLogs = async () => {
@@ -66,6 +76,45 @@ export default function AuditPage() {
     );
   }
 
+  const users = Array.from(new Set(auditLogs.map(log => log.user))).sort();
+
+  const userSessionWindows = (() => {
+    if (selectedUser === 'all') return [] as UserSessionWindow[];
+    const userLogs = auditLogs
+      .filter(log => log.user === selectedUser)
+      .slice()
+      .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+
+    const windows: UserSessionWindow[] = [];
+    let activeWindow: UserSessionWindow | null = null;
+
+    for (const log of userLogs) {
+      const isStart = log.action === 'LOGIN_SUCCESS' || log.action === 'SESSION_START';
+      const isEnd = log.action === 'MANUAL_LOGOUT' || log.action === 'SESSION_END';
+      if (isStart && !activeWindow) {
+        activeWindow = {
+          id: log.id,
+          startAt: log.createdAt || new Date().toISOString(),
+          startLabel: log.timestamp,
+        };
+        continue;
+      }
+
+      if (isEnd && activeWindow) {
+        activeWindow.endAt = log.createdAt || new Date().toISOString();
+        windows.push(activeWindow);
+        activeWindow = null;
+      }
+    }
+
+    if (activeWindow) windows.push(activeWindow);
+    return windows.reverse();
+  })();
+
+  const selectedWindow = selectedSessionWindow === 'all'
+    ? null
+    : userSessionWindows.find(w => w.id === selectedSessionWindow) || null;
+
   const filteredLogs = auditLogs.filter(log => {
     const matchesSearch =
       log.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -73,7 +122,18 @@ export default function AuditPage() {
       log.details.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesAction = filterAction === 'all' || log.action === filterAction;
     const matchesTable = filterTable === 'all' || log.entityType === filterTable;
-    return matchesSearch && matchesAction && matchesTable;
+    const matchesUser = selectedUser === 'all' || log.user === selectedUser;
+
+    const matchesWindow = (() => {
+      if (!selectedWindow || selectedUser === 'all') return true;
+      if (log.user !== selectedUser || !log.createdAt) return false;
+      const eventTime = new Date(log.createdAt).getTime();
+      const start = new Date(selectedWindow.startAt).getTime();
+      const end = selectedWindow.endAt ? new Date(selectedWindow.endAt).getTime() : Number.POSITIVE_INFINITY;
+      return eventTime >= start && eventTime <= end;
+    })();
+
+    return matchesSearch && matchesAction && matchesTable && matchesUser && matchesWindow;
   });
 
   const getActionStyles = (action: string) => {
@@ -81,6 +141,10 @@ export default function AuditPage() {
       case 'INSERT': return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' };
       case 'UPDATE': return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' };
       case 'DELETE': return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' };
+      case 'LOGIN_SUCCESS': return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' };
+      case 'SESSION_START': return { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' };
+      case 'MANUAL_LOGOUT': return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' };
+      case 'SESSION_END': return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' };
       default: return { bg: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-200' };
     }
   };
@@ -90,6 +154,7 @@ export default function AuditPage() {
       users: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
       customers: { bg: 'bg-amber-50', text: 'text-amber-700' },
       payments: { bg: 'bg-purple-50', text: 'text-purple-700' },
+      auth_sessions: { bg: 'bg-cyan-50', text: 'text-cyan-700' },
     };
     return styles[type] || { bg: 'bg-gray-50', text: 'text-gray-600' };
   };
@@ -203,6 +268,10 @@ export default function AuditPage() {
           <option value="INSERT">Create</option>
           <option value="UPDATE">Update</option>
           <option value="DELETE">Delete</option>
+          <option value="LOGIN_SUCCESS">Login Success</option>
+          <option value="SESSION_START">Session Start</option>
+          <option value="MANUAL_LOGOUT">Manual Logout</option>
+          <option value="SESSION_END">Session End</option>
         </select>
 
         <select
@@ -214,6 +283,35 @@ export default function AuditPage() {
           <option value="payments">Payments</option>
           <option value="customers">Customers</option>
           <option value="users">Users</option>
+          <option value="auth_sessions">Auth Sessions</option>
+        </select>
+
+        <select
+          value={selectedUser}
+          onChange={(e) => {
+            setSelectedUser(e.target.value);
+            setSelectedSessionWindow('all');
+          }}
+          className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 outline-none focus:border-gray-300 cursor-pointer"
+        >
+          <option value="all">All Users</option>
+          {users.map(user => (
+            <option key={user} value={user}>{user}</option>
+          ))}
+        </select>
+
+        <select
+          value={selectedSessionWindow}
+          onChange={(e) => setSelectedSessionWindow(e.target.value)}
+          disabled={selectedUser === 'all'}
+          className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 outline-none focus:border-gray-300 cursor-pointer disabled:opacity-50"
+        >
+          <option value="all">All Sessions</option>
+          {userSessionWindows.map(window => (
+            <option key={window.id} value={window.id}>
+              {window.endAt ? `${window.startLabel} -> ${new Date(window.endAt).toLocaleString()}` : `${window.startLabel} -> active`}
+            </option>
+          ))}
         </select>
 
         <div className="ml-auto text-xs text-gray-400">
@@ -270,6 +368,10 @@ export default function AuditPage() {
                           {log.action === 'INSERT' && <Plus size={10} />}
                           {log.action === 'UPDATE' && <Edit size={10} />}
                           {log.action === 'DELETE' && <Trash2 size={10} />}
+                          {log.action === 'LOGIN_SUCCESS' && <CheckCircle2 size={10} />}
+                          {log.action === 'SESSION_START' && <Activity size={10} />}
+                          {log.action === 'MANUAL_LOGOUT' && <X size={10} />}
+                          {log.action === 'SESSION_END' && <Clock size={10} />}
                           {log.action}
                         </span>
                       </td>
@@ -307,6 +409,10 @@ export default function AuditPage() {
                   {selectedLog.action === 'INSERT' && <Plus size={16} className={getActionStyles(selectedLog.action).text} />}
                   {selectedLog.action === 'UPDATE' && <Edit size={16} className={getActionStyles(selectedLog.action).text} />}
                   {selectedLog.action === 'DELETE' && <Trash2 size={16} className={getActionStyles(selectedLog.action).text} />}
+                  {selectedLog.action === 'LOGIN_SUCCESS' && <CheckCircle2 size={16} className={getActionStyles(selectedLog.action).text} />}
+                  {selectedLog.action === 'SESSION_START' && <Activity size={16} className={getActionStyles(selectedLog.action).text} />}
+                  {selectedLog.action === 'MANUAL_LOGOUT' && <X size={16} className={getActionStyles(selectedLog.action).text} />}
+                  {selectedLog.action === 'SESSION_END' && <Clock size={16} className={getActionStyles(selectedLog.action).text} />}
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Event Details</h2>
